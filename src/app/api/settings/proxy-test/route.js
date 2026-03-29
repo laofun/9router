@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { testProxyUrl } from "@/lib/network/proxyTest";
+import { requireInternetOutputForUrl } from "@/lib/serverNetworkPolicy";
 
 export async function POST(request) {
   try {
     const body = await request.json();
+    const blocked = requireInternetOutputForUrl(body?.testUrl || "https://google.com/", "Proxy tests");
+    if (blocked) return blocked;
+
     const result = await testProxyUrl({
       proxyUrl: body?.proxyUrl,
       testUrl: body?.testUrl,

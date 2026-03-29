@@ -8,6 +8,7 @@ import {
   ANTHROPIC_COMPATIBLE_PREFIX,
 } from "@/shared/constants/providers";
 import { testSingleConnection } from "../[id]/test/testUtils.js";
+import { requireInternetOutput } from "@/lib/serverNetworkPolicy";
 
 function getAuthGroup(providerId, connection = null) {
   // Prioritize authType from connection if available
@@ -41,6 +42,9 @@ function isCompatibleProvider(providerId) {
 
 // POST /api/providers/test-batch - Test multiple connections by group
 export async function POST(request) {
+  const blocked = requireInternetOutput("Batch provider tests");
+  if (blocked) return blocked;
+
   try {
     const body = await request.json();
     const { mode, providerId } = body;

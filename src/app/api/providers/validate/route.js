@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getProviderNodeById } from "@/models";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import { getDefaultModel } from "open-sse/config/providerModels.js";
+import { requireInternetOutput, requireInternetOutputForUrl } from "@/lib/serverNetworkPolicy";
 
 // POST /api/providers/validate - Validate API key with provider
 export async function POST(request) {
@@ -24,6 +25,8 @@ export async function POST(request) {
           return NextResponse.json({ error: "OpenAI Compatible node not found" }, { status: 404 });
         }
         const modelsUrl = `${node.baseUrl?.replace(/\/$/, "")}/models`;
+        const blocked = requireInternetOutputForUrl(modelsUrl, "Provider validation");
+        if (blocked) return blocked;
         const res = await fetch(modelsUrl, {
           headers: { "Authorization": `Bearer ${apiKey}` },
         });
@@ -46,6 +49,8 @@ export async function POST(request) {
         }
 
         const modelsUrl = `${normalizedBase}/models`;
+        const blocked = requireInternetOutputForUrl(modelsUrl, "Provider validation");
+        if (blocked) return blocked;
 
         const res = await fetch(modelsUrl, {
           headers: {
@@ -60,6 +65,11 @@ export async function POST(request) {
           valid: isValid,
           error: isValid ? null : "Invalid API key",
         });
+      }
+
+      if (provider !== "ollama-local") {
+        const blocked = requireInternetOutput("Provider validation");
+        if (blocked) return blocked;
       }
 
       switch (provider) {

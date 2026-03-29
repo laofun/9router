@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { exec } from "child_process";
 import { join, dirname } from "path";
 import { requireAdminSession } from "@/lib/serverAuth";
+import { requireInternetOutput } from "@/lib/serverNetworkPolicy";
 
 // Use npm from the same Node.js that runs Next.js — ensures 9remote
 // lands in the correct global bin (nvm or system, whichever is active)
@@ -19,6 +20,9 @@ function installPackage() {
 export async function POST() {
   const unauthorized = await requireAdminSession();
   if (unauthorized) return unauthorized;
+
+  const blocked = requireInternetOutput("Installing 9remote");
+  if (blocked) return blocked;
 
   try {
     await installPackage();

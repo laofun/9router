@@ -4,6 +4,8 @@ import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/sha
 import { KiroService } from "@/lib/oauth/services/kiro";
 import { GEMINI_CONFIG } from "@/lib/oauth/constants/oauth";
 import { refreshGoogleToken, updateProviderCredentials, refreshKiroToken } from "@/sse/services/tokenRefresh";
+import { isInternetOutputDisabled } from "@/lib/runtimeConfig";
+import { isLocalNetworkUrl, requireInternetOutputForUrl } from "@/lib/serverNetworkPolicy";
 
 const GEMINI_CLI_MODELS_URL = "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels";
 
@@ -182,12 +184,30 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: "Connection not found" }, { status: 404 });
     }
 
+    if (isInternetOutputDisabled()) {
+      if (connection.provider === "ollama-local") {
+        // local-only provider is allowed in LAN mode
+      } else if (
+        (isOpenAICompatibleProvider(connection.provider) || isAnthropicCompatibleProvider(connection.provider)) &&
+        isLocalNetworkUrl(connection.providerSpecificData?.baseUrl || "")
+      ) {
+        // compatible provider stays allowed when it targets the local network
+      } else {
+        return NextResponse.json(
+          { error: "Fetching provider models is disabled in LAN mode to avoid outbound internet traffic" },
+          { status: 403 }
+        );
+      }
+    }
+
     if (isOpenAICompatibleProvider(connection.provider)) {
       const baseUrl = connection.providerSpecificData?.baseUrl;
       if (!baseUrl) {
         return NextResponse.json({ error: "No base URL configured for OpenAI compatible provider" }, { status: 400 });
       }
       const url = `${baseUrl.replace(/\/$/, "")}/models`;
+      const blocked = requireInternetOutputForUrl(url, "Fetching provider models");
+      if (blocked) return blocked;
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -227,6 +247,8 @@ export async function GET(request, { params }) {
       }
 
       const url = `${baseUrl}/models`;
+      const blocked = requireInternetOutputForUrl(url, "Fetching provider models");
+      if (blocked) return blocked;
       const response = await fetch(url, {
         method: "GET",
         headers: {

@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { testSingleConnection } from "./testUtils.js";
+import { requireInternetOutput } from "@/lib/serverNetworkPolicy";
 
 // POST /api/providers/[id]/test - Test connection
 export async function POST(request, { params }) {
+  const blocked = requireInternetOutput("Provider connection tests");
+  if (blocked) return blocked;
+
   try {
     const { id } = await params;
     const result = await testSingleConnection(id);

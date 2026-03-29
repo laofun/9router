@@ -8,6 +8,7 @@ import {
 } from "@/lib/oauth/providers";
 import { createProviderConnection } from "@/models";
 import { requireAdminSession } from "@/lib/serverAuth";
+import { requireInternetOutput } from "@/lib/serverNetworkPolicy";
 
 /**
  * Dynamic OAuth API Route
@@ -19,6 +20,9 @@ import { requireAdminSession } from "@/lib/serverAuth";
 export async function GET(request, { params }) {
   const unauthorized = await requireAdminSession();
   if (unauthorized) return unauthorized;
+
+  const blocked = requireInternetOutput("OAuth flows");
+  if (blocked) return blocked;
 
   try {
     const { provider, action } = await params;
@@ -66,6 +70,9 @@ export async function GET(request, { params }) {
 export async function POST(request, { params }) {
   const unauthorized = await requireAdminSession();
   if (unauthorized) return unauthorized;
+
+  const blocked = requireInternetOutput("OAuth flows");
+  if (blocked) return blocked;
 
   try {
     const { provider, action } = await params;

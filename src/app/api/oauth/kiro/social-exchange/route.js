@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { KiroService } from "@/lib/oauth/services/kiro";
 import { createProviderConnection } from "@/models";
 import { requireAdminSession } from "@/lib/serverAuth";
+import { requireInternetOutput } from "@/lib/serverNetworkPolicy";
 
 /**
  * POST /api/oauth/kiro/social-exchange
@@ -11,6 +12,9 @@ import { requireAdminSession } from "@/lib/serverAuth";
 export async function POST(request) {
   const unauthorized = await requireAdminSession();
   if (unauthorized) return unauthorized;
+
+  const blocked = requireInternetOutput("OAuth flows");
+  if (blocked) return blocked;
 
   try {
     const { code, codeVerifier, provider } = await request.json();

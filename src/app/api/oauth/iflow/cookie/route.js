@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createProviderConnection } from "@/models";
 import { requireAdminSession } from "@/lib/serverAuth";
+import { requireInternetOutput } from "@/lib/serverNetworkPolicy";
 
 /**
  * iFlow Cookie-Based Authentication
@@ -10,6 +11,9 @@ import { requireAdminSession } from "@/lib/serverAuth";
 export async function POST(request) {
   const unauthorized = await requireAdminSession();
   if (unauthorized) return unauthorized;
+
+  const blocked = requireInternetOutput("Cookie-based provider import");
+  if (blocked) return blocked;
 
   try {
     const { cookie } = await request.json();

@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { getApiKeys } from "@/lib/localDb";
+import { requireInternetOutput } from "@/lib/serverNetworkPolicy";
 
 // POST /api/models/test - Ping a single model via internal completions
 export async function POST(request) {
+  const blocked = requireInternetOutput("Model tests");
+  if (blocked) return blocked;
+
   try {
     const { model } = await request.json();
     if (!model) return NextResponse.json({ error: "Model required" }, { status: 400 });

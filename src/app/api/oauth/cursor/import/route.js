@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { CursorService } from "@/lib/oauth/services/cursor";
 import { createProviderConnection } from "@/models";
 import { requireAdminSession } from "@/lib/serverAuth";
+import { requireInternetOutput } from "@/lib/serverNetworkPolicy";
 
 /**
  * POST /api/oauth/cursor/import
@@ -14,6 +15,9 @@ import { requireAdminSession } from "@/lib/serverAuth";
 export async function POST(request) {
   const unauthorized = await requireAdminSession();
   if (unauthorized) return unauthorized;
+
+  const blocked = requireInternetOutput("Provider token import");
+  if (blocked) return blocked;
 
   try {
     const { accessToken, machineId } = await request.json();
@@ -81,6 +85,9 @@ export async function POST(request) {
 export async function GET() {
   const unauthorized = await requireAdminSession();
   if (unauthorized) return unauthorized;
+
+  const blocked = requireInternetOutput("Provider token import");
+  if (blocked) return blocked;
 
   const cursorService = new CursorService();
   const instructions = cursorService.getTokenStorageInstructions();

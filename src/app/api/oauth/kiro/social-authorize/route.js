@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { generatePKCE } from "@/lib/oauth/utils/pkce";
 import { KiroService } from "@/lib/oauth/services/kiro";
 import { requireAdminSession } from "@/lib/serverAuth";
+import { requireInternetOutput } from "@/lib/serverNetworkPolicy";
 
 /**
  * GET /api/oauth/kiro/social-authorize
@@ -11,6 +12,9 @@ import { requireAdminSession } from "@/lib/serverAuth";
 export async function GET(request) {
   const unauthorized = await requireAdminSession();
   if (unauthorized) return unauthorized;
+
+  const blocked = requireInternetOutput("OAuth flows");
+  if (blocked) return blocked;
 
   try {
     const { searchParams } = new URL(request.url);

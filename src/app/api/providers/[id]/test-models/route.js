@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getProviderConnectionById, getApiKeys } from "@/lib/localDb";
 import { getProviderModels, PROVIDER_ID_TO_ALIAS } from "open-sse/config/providerModels.js";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
+import { requireInternetOutput } from "@/lib/serverNetworkPolicy";
 
 /**
  * Get an active API key to pass through auth when requireApiKey is enabled.
@@ -51,6 +52,9 @@ async function pingModel(modelId, baseUrl, apiKey) {
  * Actual requests go through /api/v1/chat/completions (open-sse handles everything).
  */
 export async function POST(request, { params }) {
+  const blocked = requireInternetOutput("Provider model tests");
+  if (blocked) return blocked;
+
   try {
     const { id } = await params;
     const connection = await getProviderConnectionById(id);
