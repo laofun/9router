@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { getProviderConnections } from "@/lib/localDb";
+import { requireAdminSession } from "@/lib/serverAuth";
 
 // GET /api/providers/client - List all connections for client (includes sensitive fields for sync)
 export async function GET() {
+  const unauthorized = await requireAdminSession();
+  if (unauthorized) return unauthorized;
+
   try {
     const connections = await getProviderConnections();
     

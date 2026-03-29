@@ -4,6 +4,7 @@ import { homedir } from "os";
 import { join } from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { requireAdminSession } from "@/lib/serverAuth";
 
 const execFileAsync = promisify(execFile);
 
@@ -175,6 +176,9 @@ async function extractTokensViaCLI(dbPath) {
  * Strategy: better-sqlite3 → sqlite3 CLI → manual fallback
  */
 export async function GET() {
+  const unauthorized = await requireAdminSession();
+  if (unauthorized) return unauthorized;
+
   try {
     const platform = process.platform;
     const candidates = getCandidatePaths(platform);

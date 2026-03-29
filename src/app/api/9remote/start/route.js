@@ -3,10 +3,14 @@ import { spawn } from "child_process";
 import { join, dirname } from "path";
 import os from "os";
 import { setRemoteProcess } from "@/lib/9remoteManager";
+import { requireAdminSession } from "@/lib/serverAuth";
 
 const bin9remote = join(dirname(process.execPath), "9remote");
 
 export async function POST() {
+  const unauthorized = await requireAdminSession();
+  if (unauthorized) return unauthorized;
+
   try {
     const nodeDir = dirname(process.execPath);
     const existingPath = process.env.PATH || "";

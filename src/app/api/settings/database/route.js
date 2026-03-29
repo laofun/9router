@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { exportDb, getSettings, importDb } from "@/lib/localDb";
 import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
+import { requireAdminSession } from "@/lib/serverAuth";
 
 export async function GET() {
+  const unauthorized = await requireAdminSession();
+  if (unauthorized) return unauthorized;
+
   try {
     const payload = await exportDb();
     return NextResponse.json(payload);
@@ -13,6 +17,9 @@ export async function GET() {
 }
 
 export async function POST(request) {
+  const unauthorized = await requireAdminSession();
+  if (unauthorized) return unauthorized;
+
   try {
     const payload = await request.json();
     await importDb(payload);

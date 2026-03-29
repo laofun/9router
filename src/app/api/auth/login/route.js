@@ -3,13 +3,17 @@ import { getSettings } from "@/lib/localDb";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import { cookies } from "next/headers";
-
-const SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "9router-default-secret-change-me"
-);
+import { getJwtSecretOrThrow } from "@/lib/serverAuth";
 
 export async function POST(request) {
   try {
+    let secret;
+    try {
+      secret = getJwtSecretOrThrow();
+    } catch (error) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
+    }
+
     const { password } = await request.json();
     const settings = await getSettings();
 
@@ -34,7 +38,7 @@ export async function POST(request) {
       const token = await new SignJWT({ authenticated: true })
         .setProtectedHeader({ alg: "HS256" })
         .setExpirationTime("24h")
-        .sign(SECRET);
+        .sign(secret);
 
       const cookieStore = await cookies();
       cookieStore.set("auth_token", token, {
