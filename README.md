@@ -103,7 +103,21 @@ Production mode:
 
 ```bash
 npm run build
-PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run start
+PORT=20128 HOSTNAME=0.0.0.0 BASE_URL=http://localhost:20128 npm run start
+```
+
+Docker / LAN-only mode:
+
+```bash
+docker build -t 9router .
+docker run -d --name 9router \
+  -p 20128:20128 \
+  -e DATA_DIR=/app/data \
+  -e LAN_MODE=true \
+  -e JWT_SECRET=change-me \
+  -e INITIAL_PASSWORD=change-me \
+  -v 9router-data:/app/data \
+  9router
 ```
 
 Default URLs:
@@ -1017,9 +1031,10 @@ docker stop 9router && docker rm 9router
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `JWT_SECRET` | `9router-default-secret-change-me` | JWT signing secret for dashboard auth cookie (**change in production**) |
-| `INITIAL_PASSWORD` | `123456` | First login password when no saved hash exists |
+| `JWT_SECRET` | none | Required JWT signing secret for dashboard auth cookie |
+| `INITIAL_PASSWORD` | none | Required first-login password until a saved hash exists |
 | `DATA_DIR` | `~/.9router` | Main app database location (`db.json`) |
+| `LAN_MODE` | `false` | Disables tunnel and version check for Docker/LAN-only deployments |
 | `PORT` | framework default | Service port (`20128` in examples) |
 | `HOSTNAME` | framework default | Bind host (Docker defaults to `0.0.0.0`) |
 | `NODE_ENV` | runtime default | Set `production` for deploy |
@@ -1120,7 +1135,7 @@ Notes:
 
 **First login not working**
 - Check `INITIAL_PASSWORD` in `.env`
-- If unset, fallback password is `123456`
+- Set `JWT_SECRET` and `INITIAL_PASSWORD` before the first login
 
 **No request logs under `logs/`**
 - Set `ENABLE_REQUEST_LOGS=true`
@@ -1208,4 +1223,3 @@ MIT License - see [LICENSE](LICENSE) for details.
 <div align="center">
   <sub>Built with ❤️ for developers who code 24/7</sub>
 </div>
-

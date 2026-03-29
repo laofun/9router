@@ -1,5 +1,6 @@
 import https from "https";
 import pkg from "../../../../package.json" with { type: "json" };
+import { isVersionCheckEnabled } from "@/lib/runtimeConfig";
 
 const NPM_PACKAGE_NAME = "9router";
 
@@ -37,9 +38,18 @@ function compareVersions(a, b) {
 }
 
 export async function GET() {
-  const latestVersion = await fetchLatestVersion();
   const currentVersion = pkg.version;
+  if (!isVersionCheckEnabled()) {
+    return Response.json({
+      currentVersion,
+      latestVersion: null,
+      hasUpdate: false,
+      updateCheckEnabled: false,
+    });
+  }
+
+  const latestVersion = await fetchLatestVersion();
   const hasUpdate = latestVersion ? compareVersions(latestVersion, currentVersion) > 0 : false;
 
-  return Response.json({ currentVersion, latestVersion, hasUpdate });
+  return Response.json({ currentVersion, latestVersion, hasUpdate, updateCheckEnabled: true });
 }

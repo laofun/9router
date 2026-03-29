@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { loadState, saveState } from "./state.js";
 import { spawnQuickTunnel, killCloudflared, isCloudflaredRunning, setUnexpectedExitHandler } from "./cloudflared.js";
 import { getSettings, updateSettings } from "@/lib/localDb";
+import { getTunnelDisabledReason, isTunnelFeatureAvailable } from "@/lib/runtimeConfig";
 
 const WORKER_URL = process.env.TUNNEL_WORKER_URL || "https://9router.com";
 const MACHINE_ID_SALT = "9router-tunnel-salt";
@@ -53,6 +54,10 @@ async function registerTunnelUrl(shortId, tunnelUrl) {
 }
 
 export async function enableTunnel(localPort = 20128) {
+  if (!isTunnelFeatureAvailable()) {
+    throw new Error(getTunnelDisabledReason() || "Tunnel feature is disabled");
+  }
+
   manualDisabled = false;
   if (isCloudflaredRunning()) {
     const existing = loadState();
@@ -158,8 +163,12 @@ export async function getTunnelStatus() {
   const settings = await getSettings();
   const shortId = state?.shortId || "";
   const publicUrl = shortId ? `https://r${shortId}.9router.com` : "";
+  const available = isTunnelFeatureAvailable();
+  const disabledReason = available ? "" : getTunnelDisabledReason();
 
   return {
+    available,
+    disabledReason,
     enabled: settings.tunnelEnabled === true && running,
     tunnelUrl: state?.tunnelUrl || "",
     shortId,

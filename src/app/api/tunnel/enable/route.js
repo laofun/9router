@@ -15,6 +15,7 @@ export async function POST() {
     return NextResponse.json(result);
   } catch (error) {
     console.error("Tunnel enable error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const status = error.message?.includes("Tunnel is disabled") ? 403 : 500;
+    return NextResponse.json({ error: error.message }, { status });
   }
 }

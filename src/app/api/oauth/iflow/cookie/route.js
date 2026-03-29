@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createProviderConnection } from "@/models";
+import { requireAdminSession } from "@/lib/serverAuth";
 
 /**
  * iFlow Cookie-Based Authentication
@@ -7,6 +8,9 @@ import { createProviderConnection } from "@/models";
  * Body: { cookie: "BXAuth=xxx; ..." }
  */
 export async function POST(request) {
+  const unauthorized = await requireAdminSession();
+  if (unauthorized) return unauthorized;
+
   try {
     const { cookie } = await request.json();
 

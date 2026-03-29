@@ -46,6 +46,8 @@ export default function APIPageClient({ machineId }) {
   const [tunnelUrl, setTunnelUrl] = useState("");
   const [tunnelPublicUrl, setTunnelPublicUrl] = useState("");
   const [tunnelShortId, setTunnelShortId] = useState("");
+  const [tunnelAvailable, setTunnelAvailable] = useState(true);
+  const [tunnelDisabledReason, setTunnelDisabledReason] = useState("");
   const [tunnelLoading, setTunnelLoading] = useState(false);
   const [tunnelProgress, setTunnelProgress] = useState("");
   const [tunnelStatus, setTunnelStatus] = useState(null);
@@ -225,6 +227,8 @@ export default function APIPageClient({ machineId }) {
       }
       if (tunnelRes.ok) {
         const data = await tunnelRes.json();
+        setTunnelAvailable(data.available !== false);
+        setTunnelDisabledReason(data.disabledReason || "");
         setTunnelEnabled(data.enabled || false);
         setTunnelUrl(data.tunnelUrl || "");
         setTunnelPublicUrl(data.publicUrl || "");
@@ -447,7 +451,7 @@ export default function APIPageClient({ machineId }) {
                 variant="primary"
                 icon="cloud_upload"
                 onClick={() => setShowEnableModal(true)}
-                disabled={tunnelLoading}
+                disabled={tunnelLoading || !tunnelAvailable}
                 className="bg-linear-to-r from-primary to-blue-500 hover:from-primary-hover hover:to-blue-600"
               >
                 {tunnelLoading ? (
@@ -485,6 +489,12 @@ export default function APIPageClient({ machineId }) {
             "bg-red-500/10 text-red-600 dark:text-red-400"
           }`}>
             {tunnelStatus.message}
+          </div>
+        )}
+
+        {!tunnelAvailable && tunnelDisabledReason && (
+          <div className="mt-3 p-2 rounded text-sm bg-yellow-500/10 text-yellow-700 dark:text-yellow-400">
+            {tunnelDisabledReason}
           </div>
         )}
       </Card>
@@ -700,6 +710,7 @@ export default function APIPageClient({ machineId }) {
             <Button
               onClick={handleEnableTunnel}
               fullWidth
+              disabled={!tunnelAvailable}
               className="bg-linear-to-r from-primary to-blue-500 hover:from-primary-hover hover:to-blue-600 text-white!"
             >
               Start Tunnel

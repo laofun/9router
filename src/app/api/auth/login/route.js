@@ -17,15 +17,19 @@ export async function POST(request) {
     const { password } = await request.json();
     const settings = await getSettings();
 
-    // Default password is '123456' if not set
     const storedHash = settings.password;
 
     let isValid = false;
     if (storedHash) {
       isValid = await bcrypt.compare(password, storedHash);
     } else {
-      // Use env var or default
-      const initialPassword = process.env.INITIAL_PASSWORD || "123456";
+      const initialPassword = process.env.INITIAL_PASSWORD?.trim();
+      if (!initialPassword) {
+        return NextResponse.json(
+          { error: "INITIAL_PASSWORD is required until a dashboard password is configured" },
+          { status: 503 }
+        );
+      }
       isValid = password === initialPassword;
     }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { CursorService } from "@/lib/oauth/services/cursor";
 import { createProviderConnection } from "@/models";
+import { requireAdminSession } from "@/lib/serverAuth";
 
 /**
  * POST /api/oauth/cursor/import
@@ -11,6 +12,9 @@ import { createProviderConnection } from "@/models";
  * - machineId: string - Machine ID from storage.serviceMachineId
  */
 export async function POST(request) {
+  const unauthorized = await requireAdminSession();
+  if (unauthorized) return unauthorized;
+
   try {
     const { accessToken, machineId } = await request.json();
 
@@ -75,6 +79,9 @@ export async function POST(request) {
  * Get instructions for importing Cursor token
  */
 export async function GET() {
+  const unauthorized = await requireAdminSession();
+  if (unauthorized) return unauthorized;
+
   const cursorService = new CursorService();
   const instructions = cursorService.getTokenStorageInstructions();
 

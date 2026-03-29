@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { KiroService } from "@/lib/oauth/services/kiro";
 import { createProviderConnection } from "@/models";
+import { requireAdminSession } from "@/lib/serverAuth";
 
 /**
  * POST /api/oauth/kiro/social-exchange
@@ -8,6 +9,9 @@ import { createProviderConnection } from "@/models";
  * Callback URL will be in format: kiro://kiro.kiroAgent/authenticate-success?code=XXX&state=YYY
  */
 export async function POST(request) {
+  const unauthorized = await requireAdminSession();
+  if (unauthorized) return unauthorized;
+
   try {
     const { code, codeVerifier, provider } = await request.json();
 

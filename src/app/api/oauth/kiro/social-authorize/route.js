@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { generatePKCE } from "@/lib/oauth/utils/pkce";
 import { KiroService } from "@/lib/oauth/services/kiro";
+import { requireAdminSession } from "@/lib/serverAuth";
 
 /**
  * GET /api/oauth/kiro/social-authorize
@@ -8,6 +9,9 @@ import { KiroService } from "@/lib/oauth/services/kiro";
  * Uses kiro:// custom protocol as required by AWS Cognito
  */
 export async function GET(request) {
+  const unauthorized = await requireAdminSession();
+  if (unauthorized) return unauthorized;
+
   try {
     const { searchParams } = new URL(request.url);
     const provider = searchParams.get("provider"); // "google" or "github"

@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { getSettings, updateSettings } from "@/lib/localDb";
 import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
 import bcrypt from "bcryptjs";
+import { isInternetOutputDisabled, isLanMode, isTunnelFeatureAvailable, isVersionCheckEnabled } from "@/lib/runtimeConfig";
 
 export async function GET() {
   try {
     const settings = await getSettings();
     const { password, ...safeSettings } = settings;
+    const bootstrapPasswordConfigured = Boolean(process.env.INITIAL_PASSWORD?.trim());
     
     const enableRequestLogs = process.env.ENABLE_REQUEST_LOGS === "true";
     const enableTranslator = process.env.ENABLE_TRANSLATOR === "true";
@@ -15,7 +17,12 @@ export async function GET() {
       ...safeSettings, 
       enableRequestLogs,
       enableTranslator,
-      hasPassword: !!password
+      hasPassword: !!password,
+      bootstrapPasswordConfigured,
+      lanMode: isLanMode(),
+      internetOutputDisabled: isInternetOutputDisabled(),
+      tunnelFeatureAvailable: isTunnelFeatureAvailable(),
+      versionCheckEnabled: isVersionCheckEnabled(),
     });
   } catch (error) {
     console.log("Error getting settings:", error);
@@ -42,10 +49,15 @@ export async function PATCH(request) {
           return NextResponse.json({ error: "Invalid current password" }, { status: 401 });
         }
       } else {
-        // First time setting password, no current password needed
-        // Allow empty currentPassword or default "123456"
-        if (body.currentPassword && body.currentPassword !== "123456") {
-           return NextResponse.json({ error: "Invalid current password" }, { status: 401 });
+        const bootstrapPassword = process.env.INITIAL_PASSWORD?.trim();
+        if (!bootstrapPassword) {
+          return NextResponse.json(
+            { error: "INITIAL_PASSWORD is required before setting the first dashboard password" },
+            { status: 503 }
+          );
+        }
+        if (!body.currentPassword || body.currentPassword !== bootstrapPassword) {
+          return NextResponse.json({ error: "Invalid current password" }, { status: 401 });
         }
       }
 

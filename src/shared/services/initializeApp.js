@@ -5,6 +5,7 @@ import { getMitmStatus, startMitm, loadEncryptedPassword, initDbHooks } from "@/
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { existsSync } from "fs";
+import { getTunnelDisabledReason, isInternetOutputDisabled, isTunnelFeatureAvailable } from "@/lib/runtimeConfig";
 
 import os from "os";
 
@@ -60,9 +61,17 @@ export async function initializeApp() {
   try {
     await cleanupProviderConnections();
 
+    if (!isTunnelFeatureAvailable()) {
+      killCloudflared();
+      const reason = getTunnelDisabledReason();
+      if (reason) {
+        console.log(`[InitApp] ${reason}`);
+      }
+    }
+
     // Auto-reconnect tunnel if it was enabled before restart
     const settings = await getSettings();
-    if (settings.tunnelEnabled && !isCloudflaredRunning()) {
+    if (isTunnelFeatureAvailable() && settings.tunnelEnabled && !isCloudflaredRunning()) {
       console.log("[InitApp] Tunnel was enabled, auto-reconnecting...");
       try {
         await enableTunnel();
@@ -83,14 +92,20 @@ export async function initializeApp() {
       g.signalHandlersRegistered = true;
     }
 
-    // Pre-download cloudflared binary in background
-    ensureCloudflared().catch(() => {});
+    // Pre-download cloudflared binary in background only when tunnel is allowed.
+    if (isTunnelFeatureAvailable() && !isInternetOutputDisabled()) {
+      ensureCloudflared().catch(() => {});
+    }
 
     // Watchdog: recover tunnel after process crash
-    startWatchdog();
+    if (isTunnelFeatureAvailable()) {
+      startWatchdog();
+    }
 
     // Network monitor: detect sleep/wake + network changes → restart tunnel
-    startNetworkMonitor();
+    if (isTunnelFeatureAvailable()) {
+      startNetworkMonitor();
+    }
 
     // Auto-start MITM if it was enabled before restart
     autoStartMitm();

@@ -9,6 +9,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [hasPassword, setHasPassword] = useState(null);
+  const [bootstrapPasswordConfigured, setBootstrapPasswordConfigured] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -31,6 +32,7 @@ export default function LoginPage() {
             return;
           }
           setHasPassword(!!data.hasPassword);
+          setBootstrapPasswordConfigured(data.bootstrapPasswordConfigured === true);
         } else {
           // Safe fallback on non-OK response to avoid infinite loading state.
           setHasPassword(true);
@@ -113,9 +115,13 @@ export default function LoginPage() {
               Login
             </Button>
 
-            <p className="text-xs text-center text-text-muted mt-2">
-              Default password is <code className="bg-sidebar px-1 rounded">123456</code>
-            </p>
+            {!hasPassword && (
+              <p className="text-xs text-center text-text-muted mt-2">
+                {bootstrapPasswordConfigured
+                  ? "Use INITIAL_PASSWORD for the first login, then set a dashboard password."
+                  : "Set INITIAL_PASSWORD in the environment before the first login."}
+              </p>
+            )}
           </form>
         </Card>
       </div>

@@ -4,8 +4,9 @@ import https from "https";
 import os from "os";
 import { execSync, spawn } from "child_process";
 import { savePid, loadPid, clearPid } from "./state.js";
+import { getAppDataDir, isTunnelFeatureAvailable, getTunnelDisabledReason } from "@/lib/runtimeConfig";
 
-const BIN_DIR = path.join(os.homedir(), ".9router", "bin");
+const BIN_DIR = path.join(getAppDataDir(), "bin");
 const BINARY_NAME = "cloudflared";
 const IS_WINDOWS = os.platform() === "win32";
 const BIN_NAME = IS_WINDOWS ? `${BINARY_NAME}.exe` : BINARY_NAME;
@@ -83,6 +84,10 @@ function downloadFile(url, dest) {
 }
 
 export async function ensureCloudflared() {
+  if (!isTunnelFeatureAvailable()) {
+    throw new Error(getTunnelDisabledReason() || "Tunnel feature is disabled");
+  }
+
   if (!fs.existsSync(BIN_DIR)) {
     fs.mkdirSync(BIN_DIR, { recursive: true });
   }
@@ -121,6 +126,10 @@ export function setUnexpectedExitHandler(handler) {
 }
 
 export async function spawnCloudflared(tunnelToken) {
+  if (!isTunnelFeatureAvailable()) {
+    throw new Error(getTunnelDisabledReason() || "Tunnel feature is disabled");
+  }
+
   const binaryPath = await ensureCloudflared();
 
   const child = spawn(binaryPath, ["tunnel", "run", "--dns-resolver-addrs", "1.1.1.1:53", "--token", tunnelToken], {
@@ -190,6 +199,10 @@ export async function spawnCloudflared(tunnelToken) {
  * Returns the generated trycloudflare.com URL
  */
 export async function spawnQuickTunnel(localPort, onUrlUpdate) {
+  if (!isTunnelFeatureAvailable()) {
+    throw new Error(getTunnelDisabledReason() || "Tunnel feature is disabled");
+  }
+
   const binaryPath = await ensureCloudflared();
 
   const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "cloudflared-quick-"));

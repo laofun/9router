@@ -7,6 +7,7 @@ import {
   pollForToken 
 } from "@/lib/oauth/providers";
 import { createProviderConnection } from "@/models";
+import { requireAdminSession } from "@/lib/serverAuth";
 
 /**
  * Dynamic OAuth API Route
@@ -16,6 +17,9 @@ import { createProviderConnection } from "@/models";
 // GET /api/oauth/[provider]/authorize - Generate auth URL
 // GET /api/oauth/[provider]/device-code - Request device code (for device_code flow)
 export async function GET(request, { params }) {
+  const unauthorized = await requireAdminSession();
+  if (unauthorized) return unauthorized;
+
   try {
     const { provider, action } = await params;
     const { searchParams } = new URL(request.url);
@@ -60,6 +64,9 @@ export async function GET(request, { params }) {
 // POST /api/oauth/[provider]/exchange - Exchange code for tokens and save
 // POST /api/oauth/[provider]/poll - Poll for token (device_code flow)
 export async function POST(request, { params }) {
+  const unauthorized = await requireAdminSession();
+  if (unauthorized) return unauthorized;
+
   try {
     const { provider, action } = await params;
     let body;
