@@ -40,6 +40,11 @@ if (!isCloud && !fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
+// First boot needs a real DB file before proper-lockfile can lock it.
+if (!isCloud && !fs.existsSync(DB_FILE)) {
+  fs.writeFileSync(DB_FILE, JSON.stringify(cloneDefaultData(), null, 2));
+}
+
 // Default data structure
 const defaultData = {
   providerConnections: [],
