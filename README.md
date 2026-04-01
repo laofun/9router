@@ -120,6 +120,16 @@ docker run -d --name 9router \
   9router
 ```
 
+Docker Compose:
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+```
+
+Branch-specific production notes for the hardened Docker / LAN profile:
+- [docs/CODEX_ZERO_TRUST_HARDENING.md](/Users/lfun/00.Dev/03.opensource/9router/docs/CODEX_ZERO_TRUST_HARDENING.md)
+
 Default URLs:
 - Dashboard: `http://localhost:20128/dashboard`
 - OpenAI-compatible API: `http://localhost:20128/v1`
@@ -1026,6 +1036,17 @@ docker logs -f 9router
 docker restart 9router
 docker stop 9router && docker rm 9router
 ```
+
+Docker Compose:
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+docker compose logs -f
+```
+
+For the hardened LAN-oriented deployment profile and upstream rebase notes, see:
+- [docs/CODEX_ZERO_TRUST_HARDENING.md](/Users/lfun/00.Dev/03.opensource/9router/docs/CODEX_ZERO_TRUST_HARDENING.md)
 
 ### Environment Variables
 
