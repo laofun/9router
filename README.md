@@ -127,6 +127,13 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
+Docker Compose from the public npm package:
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose.npm.yml up -d --build
+```
+
 Branch-specific production notes for the hardened Docker / LAN profile:
 - [docs/CODEX_ZERO_TRUST_HARDENING.md](/Users/lfun/00.Dev/03.opensource/9router/docs/CODEX_ZERO_TRUST_HARDENING.md)
 
@@ -1043,6 +1050,24 @@ Docker Compose:
 cp .env.example .env
 docker compose up -d --build
 docker compose logs -f
+```
+
+Public npm package variant:
+
+```bash
+docker build -f Dockerfile.npm -t 9router-public .
+docker run -d \
+  --name 9router \
+  -p 20128:20128 \
+  --env-file ./.env \
+  -v 9router-data:/app/data \
+  9router-public
+```
+
+or with Compose:
+
+```bash
+docker compose -f docker-compose.npm.yml up -d --build
 ```
 
 For the hardened LAN-oriented deployment profile and upstream rebase notes, see:

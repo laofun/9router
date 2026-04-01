@@ -2,6 +2,8 @@ import https from "https";
 import pkg from "../../../../package.json" with { type: "json" };
 import { isVersionCheckEnabled } from "@/lib/runtimeConfig";
 
+export const dynamic = "force-dynamic";
+
 const NPM_PACKAGE_NAME = "9router";
 
 // Fetch latest version from npm registry
