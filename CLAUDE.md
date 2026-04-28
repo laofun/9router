@@ -135,6 +135,41 @@ Cloudflare Workers deployment for optional cloud sync relay. Has its own `wrangl
 - Builds and pushes Docker image to `ghcr.io`
 - Docker uses multi-stage build with `node:20-alpine`, standalone Next.js output
 
+## Fork Status & Recent Work
+
+This is **`laofun/9router`** — a fork of `decolua/9router` (upstream) maintained under the **n9router** identity (package name, binary, config dir `~/.n9router`, appName `n9router`).
+
+**Direction:** reliability hardening + Antigravity deep integration + self-hosted production polish. The fork intentionally diverges from upstream's provider-coverage focus. When considering a feature, ask: does it fit the n9router direction? If upstream solved a problem differently, that's fine — the fork has its own answer.
+
+**Remotes:**
+- `origin` → `git@github.com:laofun/9router.git`
+- `upstream` → `https://github.com/decolua/9router.git`
+
+**Last sync:** upstream `decolua/9router` v0.4.6 merged into master (10 commits) on 2026-04-28.
+
+### Bug fixes shipped (Round 1–3, all on master)
+
+| Round | What | Files |
+|-------|------|-------|
+| 1 | OpenAI `tool_choice` shape `{type:"function",function:{name}}` → Claude `{type:"tool",name}` | `open-sse/translator/request/openai-to-claude.js` |
+| 1 | `cache_creation_input_tokens` / `cache_read_input_tokens` forwarded to OpenAI `prompt_tokens_details` (streaming + non-streaming) | `open-sse/translator/response/claude-to-openai.js`, `open-sse/handlers/chatCore/nonStreamingHandler.js` |
+| 2 | Claude OAuth cloaking: `_buildHash` / `_cch` are module-level constants (stable per process) — preserves Anthropic prefix-based prompt cache | `open-sse/utils/claudeCloaking.js` |
+| 2 | `cloakClaudeTools` now applies `CLAUDE_TOOL_SUFFIX` (`_ide`) to `tool_choice.name` when `type === "tool"` (with double-suffix guard) | `open-sse/utils/claudeCloaking.js` |
+| 3 | `translateNonStreamingResponse` accepts `toolNameMap` and decloaks Gemini `functionCall.name` (fixes `_ide` suffix bleeding through on `ag/gemini-3-flash`) | `open-sse/handlers/chatCore/nonStreamingHandler.js` |
+| 3 | `extended-cache-ttl-2025-04-11` added to Anthropic-Beta header (hygiene for `ttl:"1h"` cache_control) | `open-sse/config/providers.js` |
+
+Test coverage for the above: `tests/unit/openai-to-claude.test.js`, `tests/unit/claudeCloaking.test.js`, `tests/unit/gemini-nonstreaming-decloak.test.js`.
+
+### Outstanding issue
+
+**Anthropic prompt cache miss** — upstream still returns `cache_read_input_tokens=0` on every call from this proxy. Round 2 made the cloaking prefix byte-stable and Round 3 added the `extended-cache-ttl` beta header, but neither has been verified to fix the miss. **Do not write more proxy code for this** until the reporter's diagnostic A–D has been run (compare raw upstream request bytes across two consecutive calls; confirm beta header reaches Anthropic; confirm OAuth account is enabled for prompt caching). The proxy code path itself looks correct.
+
+### Fork-only files to be aware of
+
+- `open-sse/rtk/flag.js` — upstream deleted it during v0.4.6; fork restored it because `open-sse/rtk/antigravity.js` still calls `isRtkEnabled()` and `src/app/api/settings/route.js` still calls `setRtkEnabled`. Don't re-delete during future syncs without rewiring callers.
+- `package.json` — name `n9router`, bin `n9router`, no `private:true`. Keep when resolving merge conflicts.
+- `appName` config = `"n9router"`, data paths use `.n9router`, not `.9router`.
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
