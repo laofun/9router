@@ -1,5 +1,16 @@
 # Changelog
 
+## Upstream sync (2026-04-25)
+- Add BytePlus Provider
+- Add Codex support to image providers
+- Enhance image and embedding provider support
+- Cap maximum cooldown for rate limit handling
+- Dynamic custom model fetching for model selection
+- Improve Codex provider cooldown with `resetsAtMs` and email backfill for OAuth accounts
+- Add TOOL_HOSTS per-tool DNS mapping
+- Granular `reasoning_effort` handling for Claude models
+
+
 ## v0.4.16 (2026-04-24)
 
 ### Features
