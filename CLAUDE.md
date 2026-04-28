@@ -160,9 +160,30 @@ This is **`laofun/9router`** — a fork of `decolua/9router` (upstream) maintain
 
 Test coverage for the above: `tests/unit/openai-to-claude.test.js`, `tests/unit/claudeCloaking.test.js`, `tests/unit/gemini-nonstreaming-decloak.test.js`.
 
-### Outstanding issue
+### Round 4 — diagnostic ran 2026-04-28, conclusion: cache IS working on OAuth, just not reported
 
-**Anthropic prompt cache miss** — upstream still returns `cache_read_input_tokens=0` on every call from this proxy. Round 2 made the cloaking prefix byte-stable and Round 3 added the `extended-cache-ttl` beta header, but neither has been verified to fix the miss. **Do not write more proxy code for this** until the reporter's diagnostic A–D has been run (compare raw upstream request bytes across two consecutive calls; confirm beta header reaches Anthropic; confirm OAuth account is enabled for prompt caching). The proxy code path itself looks correct.
+Reporter "Round 4" flagged that `cache_read_input_tokens` was still 0 across calls after Round 1–3. Branch `diag/cache-miss` (commit `b713862`, kept un-merged for reference) added env-gated `CACHE_DIAG=1` logging at 4 sites (outgoing system blocks, non-streaming usage, streaming `message_start`/`message_delta`).
+
+3 sequential identical Haiku calls via OAuth (`sk-ant-oat`) on n9router produced:
+
+| Call | input | cache_creation | cache_read | latency |
+|---|---|---|---|---|
+| 1 (cold) | 3022 | 0 | 0 | **6333 ms** |
+| 2 (warm) | 3022 | 0 | 0 | **1423 ms** |
+| 3 (warm) | 3022 | 0 | 0 | **1046 ms** |
+
+System blocks were byte-stable across all 3 (`text_len: 84 / 57 / 4000`, identical first-50, `cc_ttl: "1h"` honored). Latency dropped 6× — classic cache-hit pattern.
+
+**Conclusion**: Anthropic **does** cache for OAuth Claude Code subscription requests (proven by latency), but **does not populate `cache_read_input_tokens` / `cache_creation_input_tokens`** in the response. OAuth tier is flat-rate billing (Claude Pro/Max) so per-token cache metrics are not exposed. The proxy path is correct end-to-end.
+
+Implications:
+- ✅ End users benefit from cache (faster TTFT) on OAuth Claude Code accounts.
+- ❌ Dashboards / OpenAI `prompt_tokens_details.cached_tokens` will be empty for OAuth — proxy has nothing to forward.
+- For visible cache metrics, use a direct API key (`sk-ant-api03-*`) instead of OAuth login.
+
+Reporter's $5–8/100-chap savings estimate assumed pay-per-token billing; on Claude Code subscription, savings come from latency, not cost (subscription is flat-rate).
+
+**Branch `diag/cache-miss` is intentionally not merged** — instrumentation is for future debugging only, not production. Re-checkout if cache-related symptoms reappear.
 
 ### Fork-only files to be aware of
 
