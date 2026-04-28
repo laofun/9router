@@ -1,6 +1,7 @@
 import { HTTP_STATUS, RETRY_CONFIG, DEFAULT_RETRY_CONFIG, resolveRetryEntry } from "../config/runtimeConfig.js";
 import { resolveOllamaLocalHost } from "../config/providers.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
+import { logRequest as cacheDiagLogRequest } from "../utils/cacheDiag.js";
 
 /**
  * BaseExecutor - Base class for provider executors
@@ -124,6 +125,8 @@ export class BaseExecutor {
       const headers = this.buildHeaders(credentials, stream);
 
       if (!retryAttemptsByUrl[urlIndex]) retryAttemptsByUrl[urlIndex] = 0;
+
+      cacheDiagLogRequest({ provider: this.provider, url, headers, body: transformedBody });
 
       try {
         const response = await proxyAwareFetch(url, {

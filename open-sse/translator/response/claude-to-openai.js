@@ -1,5 +1,6 @@
 import { register } from "../index.js";
 import { FORMATS } from "../formats.js";
+import { logUsage as cacheDiagLogUsage } from "../../utils/cacheDiag.js";
 
 // Build prompt_tokens_details from Claude cache fields
 function buildCacheDetails(usage) {
@@ -47,6 +48,7 @@ export function claudeToOpenAIResponse(chunk, state) {
           cache_read_input_tokens: chunk.message.usage.cache_read_input_tokens || 0,
           cache_creation_input_tokens: chunk.message.usage.cache_creation_input_tokens || 0
         };
+        cacheDiagLogUsage("message_start", chunk.message.usage, { model: state.model });
       }
       results.push(createChunk(state, { role: "assistant" }));
       break;
@@ -128,6 +130,7 @@ export function claudeToOpenAIResponse(chunk, state) {
       // IMPORTANT: Claude SSE only reports output_tokens in message_delta.
       // input_tokens and cache tokens were reported in message_start and are stored in state.inputUsage.
       if (chunk.usage && typeof chunk.usage === "object") {
+        cacheDiagLogUsage("message_delta", chunk.usage, { model: state.model });
         const startUsage = state.inputUsage || {};
         // Use message_delta values when present; fall back to message_start captured values.
         const inputTokens = typeof chunk.usage.input_tokens === "number"
