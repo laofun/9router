@@ -12,10 +12,10 @@
     "gemini",
     "cursor"
   ],
-  "homepage": "https://github.com/nightwalker89/n9router",
+  "homepage": "https://github.com/laofun/9router",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nightwalker89/n9router.git"
+    "url": "https://github.com/laofun/9router.git"
   },
   "config": {
     "appName": "n9router"

@@ -121,4 +121,57 @@ describe("openaiToClaudeRequest", () => {
       expect(systemText).toContain("You must respond with valid JSON");
     });
   });
+
+  describe("tool_choice conversion", () => {
+    const baseBody = {
+      messages: [{ role: "user", content: "Hello" }],
+      tools: [{
+        type: "function",
+        function: {
+          name: "extract_terms",
+          parameters: { type: "object", properties: {}, required: [] }
+        }
+      }]
+    };
+
+    it("should convert OpenAI {type:'function'} shape to Claude {type:'tool'}", () => {
+      const result = openaiToClaudeRequest("claude-haiku-4-5-20251001", {
+        ...baseBody,
+        tool_choice: { type: "function", function: { name: "extract_terms" } }
+      }, false);
+      expect(result.tool_choice).toEqual({ type: "tool", name: "extract_terms" });
+    });
+
+    it("should convert string 'required' to {type:'any'}", () => {
+      const result = openaiToClaudeRequest("claude-haiku-4-5-20251001", {
+        ...baseBody,
+        tool_choice: "required"
+      }, false);
+      expect(result.tool_choice).toEqual({ type: "any" });
+    });
+
+    it("should convert string 'auto' to {type:'auto'}", () => {
+      const result = openaiToClaudeRequest("claude-haiku-4-5-20251001", {
+        ...baseBody,
+        tool_choice: "auto"
+      }, false);
+      expect(result.tool_choice).toEqual({ type: "auto" });
+    });
+
+    it("should convert string 'none' to {type:'auto'}", () => {
+      const result = openaiToClaudeRequest("claude-haiku-4-5-20251001", {
+        ...baseBody,
+        tool_choice: "none"
+      }, false);
+      expect(result.tool_choice).toEqual({ type: "auto" });
+    });
+
+    it("should passthrough already-valid Claude shape {type:'tool'}", () => {
+      const result = openaiToClaudeRequest("claude-haiku-4-5-20251001", {
+        ...baseBody,
+        tool_choice: { type: "tool", name: "extract_terms" }
+      }, false);
+      expect(result.tool_choice).toEqual({ type: "tool", name: "extract_terms" });
+    });
+  });
 });

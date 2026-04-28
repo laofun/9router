@@ -1,6 +1,17 @@
 import { register } from "../index.js";
 import { FORMATS } from "../formats.js";
 
+// Build prompt_tokens_details from Claude cache fields
+function buildCacheDetails(usage) {
+  const cacheRead = usage?.cache_read_input_tokens || 0;
+  const cacheCreate = usage?.cache_creation_input_tokens || 0;
+  if (cacheRead === 0 && cacheCreate === 0) return null;
+  const details = {};
+  if (cacheRead > 0) details.cached_tokens = cacheRead;
+  if (cacheCreate > 0) details.cache_creation_tokens = cacheCreate;
+  return details;
+}
+
 // Create OpenAI chunk helper
 function createChunk(state, delta, finishReason = null) {
   return {
@@ -161,14 +172,8 @@ export function claudeToOpenAIResponse(chunk, state) {
             completion_tokens: state.usage.completion_tokens,
             total_tokens: state.usage.total_tokens
           };
-
-          const cacheRead = state.usage.cache_read_input_tokens;
-          const cacheCreate = state.usage.cache_creation_input_tokens;
-          if (cacheRead > 0 || cacheCreate > 0) {
-            finalChunk.usage.prompt_tokens_details = {};
-            if (cacheRead > 0) finalChunk.usage.prompt_tokens_details.cached_tokens = cacheRead;
-            if (cacheCreate > 0) finalChunk.usage.prompt_tokens_details.cache_creation_tokens = cacheCreate;
-          }
+          const cacheDetails = buildCacheDetails(state.usage);
+          if (cacheDetails) finalChunk.usage.prompt_tokens_details = cacheDetails;
         }
 
         results.push(finalChunk);
@@ -180,13 +185,17 @@ export function claudeToOpenAIResponse(chunk, state) {
     case "message_stop": {
       if (!state.finishReasonSent) {
         const finishReason = state.finishReason || (state.toolCalls?.size > 0 ? "tool_calls" : "stop");
-        const usageObj = (state.usage && typeof state.usage === 'object') ? {
-          usage: {
+        let usageObj = {};
+        if (state.usage && typeof state.usage === 'object') {
+          const usage = {
             prompt_tokens: state.usage.input_tokens || 0,
             completion_tokens: state.usage.output_tokens || 0,
             total_tokens: (state.usage.input_tokens || 0) + (state.usage.output_tokens || 0)
-          }
-        } : {};
+          };
+          const cacheDetails = buildCacheDetails(state.usage);
+          if (cacheDetails) usage.prompt_tokens_details = cacheDetails;
+          usageObj = { usage };
+        }
         results.push({
           id: `chatcmpl-${state.messageId}`,
           object: "chat.completion.chunk",
