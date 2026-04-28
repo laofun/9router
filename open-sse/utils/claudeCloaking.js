@@ -4,13 +4,19 @@ import { CLAUDE_TOOL_SUFFIX, CC_DEFAULT_TOOLS } from "../config/appConstants.js"
 const CLAUDE_VERSION = "2.1.92";
 const CC_ENTRYPOINT = "sdk-cli";
 
+// Stable per process run — required so billing block is identical across requests,
+// preserving Anthropic's prefix-based prompt cache.
+const _buildHash = randomBytes(2).toString("hex").slice(0, 3);
+const _cch = createHash("sha256")
+  .update(`${CLAUDE_VERSION}.${_buildHash}.${CC_ENTRYPOINT}`)
+  .digest("hex").slice(0, 5);
+const _billingHeader = `x-anthropic-billing-header: cc_version=${CLAUDE_VERSION}.${_buildHash}; cc_entrypoint=${CC_ENTRYPOINT}; cch=${_cch};`;
+
 // Generate billing header matching real Claude Code 2.1.92+ format:
 // x-anthropic-billing-header: cc_version=<ver>.<build>; cc_entrypoint=sdk-cli; cch=<hash>;
-function generateBillingHeader(payload) {
-  const content = JSON.stringify(payload);
-  const cch = createHash("sha256").update(content).digest("hex").slice(0, 5);
-  const buildHash = randomBytes(2).toString("hex").slice(0, 3);
-  return `x-anthropic-billing-header: cc_version=${CLAUDE_VERSION}.${buildHash}; cc_entrypoint=${CC_ENTRYPOINT}; cch=${cch};`;
+// eslint-disable-next-line no-unused-vars
+function generateBillingHeader(_payload) {
+  return _billingHeader;
 }
 
 // Generate fake user ID in Claude Code 2.1.92+ JSON format:
@@ -60,8 +66,15 @@ export function cloakClaudeTools(body) {
     return { ...msg, content: renamedContent };
   });
 
+  const newBody = { ...body, tools: allTools, messages: renamedMessages || body.messages };
+
+  // Apply suffix to tool_choice.name so it matches the renamed tool declaration
+  if (newBody.tool_choice?.type === "tool" && newBody.tool_choice?.name && !newBody.tool_choice.name.endsWith(CLAUDE_TOOL_SUFFIX)) {
+    newBody.tool_choice = { ...newBody.tool_choice, name: `${newBody.tool_choice.name}${CLAUDE_TOOL_SUFFIX}` };
+  }
+
   return {
-    body: { ...body, tools: allTools, messages: renamedMessages || body.messages },
+    body: newBody,
     toolNameMap: toolNameMap.size > 0 ? toolNameMap : null
   };
 }
