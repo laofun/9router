@@ -108,11 +108,20 @@ export function translateNonStreamingResponse(responseBody, targetFormat, source
     };
 
     if (responseBody.usage) {
+      const u = responseBody.usage;
       result.usage = {
-        prompt_tokens: responseBody.usage.input_tokens || 0,
-        completion_tokens: responseBody.usage.output_tokens || 0,
-        total_tokens: (responseBody.usage.input_tokens || 0) + (responseBody.usage.output_tokens || 0)
+        prompt_tokens: u.input_tokens || 0,
+        completion_tokens: u.output_tokens || 0,
+        total_tokens: (u.input_tokens || 0) + (u.output_tokens || 0)
       };
+      const cacheRead = u.cache_read_input_tokens || 0;
+      const cacheCreate = u.cache_creation_input_tokens || 0;
+      if (cacheRead > 0 || cacheCreate > 0) {
+        const details = {};
+        if (cacheRead > 0) details.cached_tokens = cacheRead;
+        if (cacheCreate > 0) details.cache_creation_tokens = cacheCreate;
+        result.usage.prompt_tokens_details = details;
+      }
     }
     return result;
   }
