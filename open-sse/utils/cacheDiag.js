@@ -1,3 +1,5 @@
+import { createHash } from "crypto";
+
 /**
  * Diagnostic logging for Anthropic prompt-cache miss investigation.
  *
@@ -47,6 +49,14 @@ export function logRequest({ provider, url, headers, body }) {
   if (!enabled()) return;
   if (provider !== "claude") return;
   try {
+    // Hash metadata.user_id so we can compare stability across calls without
+    // leaking the actual fake device_id / account_uuid values.
+    let metadataUserIdHash = null;
+    if (typeof body?.metadata?.user_id === "string") {
+      metadataUserIdHash = createHash("sha256")
+        .update(body.metadata.user_id).digest("hex").slice(0, 12);
+    }
+
     const summary = {
       url,
       headers: redactHeaders({
@@ -59,6 +69,7 @@ export function logRequest({ provider, url, headers, body }) {
       model: body?.model,
       tools_count: Array.isArray(body?.tools) ? body.tools.length : 0,
       messages_count: Array.isArray(body?.messages) ? body.messages.length : 0,
+      metadata_user_id_hash: metadataUserIdHash,
     };
     console.log("[CACHE-DIAG req]", JSON.stringify(summary));
   } catch (e) {
