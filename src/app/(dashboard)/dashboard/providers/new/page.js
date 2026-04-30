@@ -38,7 +38,7 @@ export default function NewProviderPage() {
   const validate = () => {
     const newErrors = {};
     if (!formData.provider) newErrors.provider = "Please select a provider";
-    if (formData.authMethod === "api_key" && !formData.apiKey) {
+    if (formData.authMethod === "api_key" && !formData.apiKey && formData.provider !== "ollama-local") {
       newErrors.apiKey = "API Key is required";
     }
     setErrors(newErrors);
@@ -152,7 +152,7 @@ export default function NewProviderPage() {
           </div>
 
           {/* API Key Input */}
-          {formData.authMethod === "api_key" && (
+          {formData.authMethod === "api_key" && formData.provider !== "ollama-local" && (
             <Input
               label="API Key"
               type="password"
@@ -163,6 +163,12 @@ export default function NewProviderPage() {
               hint="Your API key will be encrypted and stored securely."
               required
             />
+          )}
+          {formData.authMethod === "api_key" && formData.provider === "ollama-local" && (
+            <p className="text-sm text-text-muted p-3 rounded-lg bg-bg border border-border">
+              Ollama Local does not require an API key. Default host: <code>http://localhost:11434</code>.
+              You can configure a custom host on the provider detail page after creation.
+            </p>
           )}
 
           {/* OAuth2 Button */}
