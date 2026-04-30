@@ -1,5 +1,30 @@
 # Changelog
 
+## Upstream sync (2026-04-30) — v0.4.10
+
+### v0.4.10 (2026-04-29)
+- Add new embedding models and Voyage AI provider support
+- Add Coqui, Inworld, Tortoise TTS providers
+- Add Deepgram and Inworld TTS voices API endpoints
+- Enhance MITM Antigravity handler with improved cert install and DNS config
+- Refactor TTS handling to support additional providers
+- Improve API key validation for media providers
+- Enhance MITM logger with better diagnostics
+- Add Windows elevated permissions support for MITM
+- Fix Antigravity MITM connection and handler issues
+- Fix cloudflared tunnel integration with MITM
+
+### v0.4.8 (2026-04-28)
+- Add Web Search & Web Fetch providers with Combo support — chain multiple search/fetch providers as a single virtual provider
+- Add Cloudflare AI provider support
+- Add provider filter and expiry sorting to quota dashboard (#769)
+- Proxy-aware token refresh across executors (Antigravity, Base, Default, Github, Kiro)
+- Fix granular `reasoning_effort` handling for Claude models on Copilot & Anthropic backend (#791)
+- Fix Antigravity INVALID_ARGUMENT errors and Copilot agent mode parity
+- Fix quota reset timestamp parsing (#768)
+
+# v0.4.6 (2026-04-25)
+
 ## Upstream sync (2026-04-25)
 - Add BytePlus Provider
 - Add Codex support to image providers
