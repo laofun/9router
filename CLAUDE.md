@@ -145,7 +145,7 @@ This is **`laofun/9router`** — a fork of `decolua/9router` (upstream) maintain
 - `origin` → `git@github.com:laofun/9router.git`
 - `upstream` → `https://github.com/decolua/9router.git`
 
-**Last sync:** upstream `decolua/9router` v0.4.6 merged into master (10 commits) on 2026-04-28.
+**Last sync:** upstream `decolua/9router` v0.4.10 merged into master on 2026-04-30 (87 files, +4276/-474). Conflict resolution favored fork's MITM hardening (debug context, RTK compression, multi-store cert install with WSL support, enhanced DNS error reporting); adopted upstream's new web search/fetch handlers and media-providers. Round 1–3 fixes preserved untouched.
 
 ### Bug fixes shipped (Round 1–3, all on master)
 
