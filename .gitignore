@@ -49,6 +49,8 @@ source/*
 .cursor/*
 docs/*
 !docs/ARCHITECTURE.md
+!docs/PERF_INVESTIGATION.md
+!docs/TOOLS_INVESTIGATION.md
 test/*
 bin/*
 open-sse/test/*
