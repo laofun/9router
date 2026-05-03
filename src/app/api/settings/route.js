@@ -17,12 +17,16 @@ export async function GET() {
   try {
     const settings = await getSettings();
     const { password, ...safeSettings } = settings;
-    
+
     const enableRequestLogs = process.env.ENABLE_REQUEST_LOGS === "true";
     const enableTranslator = process.env.ENABLE_TRANSLATOR === "true";
-    
-    return NextResponse.json({ 
-      ...safeSettings, 
+    const runtimeDebugEnabled = safeSettings.runtimeDebugEnabled === true;
+    const enableObservability = safeSettings.enableObservability === true || safeSettings.observabilityEnabled === true;
+
+    return NextResponse.json({
+      ...safeSettings,
+      runtimeDebugEnabled,
+      enableObservability,
       enableRequestLogs,
       enableTranslator,
       mitmAntigravityDebugLogDir: MITM_ANTIGRAVITY_DEBUG_LOG_DIR,
@@ -37,6 +41,10 @@ export async function GET() {
 export async function PATCH(request) {
   try {
     const body = await request.json();
+
+    if (Object.prototype.hasOwnProperty.call(body, "enableObservability") && !Object.prototype.hasOwnProperty.call(body, "observabilityEnabled")) {
+      body.observabilityEnabled = body.enableObservability;
+    }
 
     // If updating password, hash it
     if (body.newPassword) {
@@ -93,6 +101,8 @@ export async function PATCH(request) {
     const { password, ...safeSettings } = settings;
     return NextResponse.json({
       ...safeSettings,
+      runtimeDebugEnabled: safeSettings.runtimeDebugEnabled === true,
+      enableObservability: safeSettings.enableObservability === true || safeSettings.observabilityEnabled === true,
       mitmAntigravityDebugLogDir: MITM_ANTIGRAVITY_DEBUG_LOG_DIR,
     });
   } catch (error) {

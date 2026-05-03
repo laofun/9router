@@ -33,6 +33,7 @@ const DEFAULT_SETTINGS = {
   requireLogin: true,
   tunnelDashboardAccess: true,
   observabilityEnabled: true,
+  runtimeDebugEnabled: false,
   observabilityMaxRecords: 1000,
   observabilityBatchSize: 20,
   observabilityFlushIntervalMs: 5000,

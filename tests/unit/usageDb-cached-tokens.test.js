@@ -225,4 +225,38 @@ describe("usageDb cached token stats", () => {
     expect(getApiKeys).toHaveBeenCalledTimes(1);
     expect(getProviderNodes).toHaveBeenCalledTimes(1);
   });
+
+  it("builds a compact runtime debug snapshot from existing live state", async () => {
+    const usageDb = await import("@/lib/usageDb.js");
+
+    usageDb.trackPendingRequest("claude-3-5-haiku", "anthropic", "conn-1", true);
+    await usageDb.saveRequestUsage({
+      provider: "anthropic",
+      model: "claude-3-5-haiku",
+      tokens: { prompt_tokens: 10, completion_tokens: 20 },
+      timestamp: new Date().toISOString(),
+      endpoint: "/v1/messages",
+      status: "ok",
+    });
+
+    const snapshot = await usageDb.getRuntimeDebugSnapshot();
+
+    expect(snapshot.activeRequests).toEqual([
+      {
+        model: "claude-3-5-haiku",
+        provider: "anthropic",
+        account: expect.any(String),
+        count: 1,
+      },
+    ]);
+    expect(snapshot.recentRequests[0]).toMatchObject({
+      model: "claude-3-5-haiku",
+      provider: "anthropic",
+      promptTokens: 10,
+      completionTokens: 20,
+    });
+    expect(snapshot.pendingByModel["claude-3-5-haiku (anthropic)"]).toBe(1);
+    expect(snapshot.pendingByAccount["conn-1"]["claude-3-5-haiku (anthropic)"]).toBe(1);
+    expect(typeof snapshot.pendingTimerCount).toBe("number");
+  });
 });

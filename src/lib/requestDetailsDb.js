@@ -254,6 +254,25 @@ export async function getRequestDetailById(id) {
   return db.data.records.find(r => r.id === id) || null;
 }
 
+export async function getRecentRequestDetailSummaries(limit = 20) {
+  if (isCloud) return [];
+
+  const db = await getDb();
+  return [...(db.data.records || [])]
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    .slice(0, limit)
+    .map((record) => ({
+      id: record.id,
+      provider: record.provider || null,
+      model: record.model || null,
+      connectionId: record.connectionId || null,
+      timestamp: record.timestamp,
+      status: record.status || null,
+      latency: record.latency || {},
+      tokens: record.tokens || {},
+    }));
+}
+
 // Graceful shutdown — use named handler so we can remove it on re-registration
 const _shutdownHandler = async () => {
   if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }

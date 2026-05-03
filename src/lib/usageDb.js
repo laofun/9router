@@ -930,6 +930,21 @@ export async function getUsageStats(period = "all") {
  * @param {"24h"|"7d"|"30d"|"60d"} period
  * @returns {Promise<Array<{label: string, tokens: number, cost: number}>>}
  */
+export async function getRuntimeDebugSnapshot() {
+  const { activeRequests, recentRequests, errorProvider } = await getActiveRequests();
+
+  return {
+    activeRequests,
+    recentRequests,
+    errorProvider,
+    pendingByModel: { ...pendingRequests.byModel },
+    pendingByAccount: Object.fromEntries(
+      Object.entries(pendingRequests.byAccount).map(([connectionId, models]) => [connectionId, { ...models }])
+    ),
+    pendingTimerCount: Object.keys(pendingTimers).length,
+  };
+}
+
 export async function getChartData(period = "7d") {
   const db = await getUsageDb();
   const history = db.data.history || [];

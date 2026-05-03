@@ -92,4 +92,48 @@ describe("extractUsageFromResponse", () => {
     expect(saved).toBeDefined();
     expect(JSON.stringify(saved).length).toBeLessThan(20000);
   });
+
+  it("returns lightweight recent request detail summaries without raw payload blobs", async () => {
+    process.env.OBSERVABILITY_BATCH_SIZE = "1";
+    vi.doMock("@/lib/localDb", () => ({
+      getSettings: vi.fn(async () => ({
+        enableObservability: true,
+        observabilityBatchSize: 1,
+        observabilityFlushIntervalMs: 60000,
+        observabilityMaxJsonSize: 5,
+      })),
+    }));
+    const requestDetailsDb = await import("@/lib/requestDetailsDb.js");
+
+    await requestDetailsDb.saveRequestDetail({
+      id: "detail-summary",
+      provider: "anthropic",
+      model: "claude-3-5-haiku",
+      connectionId: "conn-1",
+      timestamp: "2026-05-03T10:00:00.000Z",
+      status: "200 OK",
+      latency: { totalMs: 1234 },
+      tokens: { prompt_tokens: 10, completion_tokens: 20 },
+      request: { huge: "x".repeat(10000) },
+      providerRequest: { huge: "y".repeat(10000) },
+      providerResponse: { huge: "z".repeat(10000) },
+      response: { huge: "w".repeat(10000) },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const summaries = await requestDetailsDb.getRecentRequestDetailSummaries(5);
+
+    expect(summaries).toEqual([
+      {
+        id: "detail-summary",
+        provider: "anthropic",
+        model: "claude-3-5-haiku",
+        connectionId: "conn-1",
+        timestamp: "2026-05-03T10:00:00.000Z",
+        status: "200 OK",
+        latency: { totalMs: 1234 },
+        tokens: { prompt_tokens: 10, completion_tokens: 20 },
+      },
+    ]);
+  });
 });
