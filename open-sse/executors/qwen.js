@@ -31,6 +31,7 @@ function ensureQwenSystemMessage(body) {
 
 function isQwenThinkingActive(body) {
   const thinking = body?.thinking;
+  if (thinking?.type === "disabled") return false;
   if (thinking === true || body?.enable_thinking === true) return true;
   return typeof thinking === "object" && thinking !== null && !Array.isArray(thinking) && thinking.type === "enabled";
 }

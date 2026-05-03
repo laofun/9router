@@ -148,11 +148,8 @@ export class GithubExecutor extends BaseExecutor {
     if (!this.supportsThinking(model)) {
       delete transformed.thinking;
     }
-    // "none" means no thinking — strip it so models that don't support "none" don't 400
-    if (transformed.reasoning_effort === "none") {
-      delete transformed.reasoning_effort;
-    }
-    // Strip reasoning_effort only for models that reject it
+    // Preserve explicit no-thinking requests for models that support reasoning_effort.
+    // Strip reasoning_effort only for models that reject it.
     if (!this.supportsReasoningEffort(model) && transformed.reasoning_effort !== undefined) {
       delete transformed.reasoning_effort;
     }

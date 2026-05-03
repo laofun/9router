@@ -191,6 +191,44 @@ Reporter's $5–8/100-chap savings estimate assumed pay-per-token billing; on Cl
 - `package.json` — name `n9router`, bin `n9router`, no `private:true`. Keep when resolving merge conflicts.
 - `appName` config = `"n9router"`, data paths use `.n9router`, not `.9router`.
 
+### Merge guard — request-level thinking control
+
+Request-level client input is the source of truth for thinking/reasoning behavior. Provider-level thinking settings are defaults/guardrails only and must never overwrite an explicit client request.
+
+Invariants to preserve during upstream syncs and local refactors:
+- `reasoning_effort: "none"` means explicit thinking OFF, not "unset"
+- `thinking: { type: "disabled" }` means explicit thinking OFF, not "unset"
+- explicit OFF must survive normalization and must not be converted back into provider-default ON
+- explicit OFF must be preserved across OpenAI → Claude and OpenAI → Gemini request translation
+- Codex must not fall back to default low reasoning when the client explicitly sends OFF
+- GitHub/Qwen sanitation may strip unsupported upstream fields, but must not re-enable thinking locally
+
+Files to re-check carefully when merging upstream changes touching request translation/execution:
+- `open-sse/services/provider.js`
+- `open-sse/handlers/chatCore.js`
+- `open-sse/translator/request/openai-to-claude.js`
+- `open-sse/translator/request/openai-to-gemini.js`
+- `open-sse/executors/codex.js`
+- `open-sse/executors/github.js`
+- `open-sse/executors/qwen.js`
+- `tests/unit/thinkingControl.test.js`
+- `tests/unit/openai-to-claude.test.js`
+- `tests/unit/translator-request-normalization.test.js`
+
+Client guidance:
+- OpenAI/Gemini-style clients should use `reasoning_effort` (`none`, `low`, `medium`, `high`)
+- Claude-native clients should use `thinking.type` (`disabled` or `enabled`)
+- prefer request-level controls over provider-page defaults when behavior must be deterministic
+
+After merging upstream changes in these areas, re-run at least:
+- `cd tests && NODE_PATH=/tmp/node_modules /tmp/node_modules/.bin/vitest run unit/thinkingControl.test.js --reporter=verbose`
+- `cd tests && NODE_PATH=/tmp/node_modules /tmp/node_modules/.bin/vitest run unit/openai-to-claude.test.js unit/translator-request-normalization.test.js --reporter=verbose`
+- `cd tests && NODE_PATH=/tmp/node_modules /tmp/node_modules/.bin/vitest run unit/codex-image-fetch.test.js unit/codex-refresh-token.test.js --reporter=verbose`
+
+If an upstream change simplifies or removes any of the above logic, verify that explicit OFF still survives end-to-end before accepting the merge.
+
+<!-- gitnexus:start -->
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 

@@ -273,7 +273,13 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
       if (realIP) return await createBypassRequest(parsedUrl, realIP, options);
     } catch (error) {
       if (error?.name === "AbortError") throw error;
-      console.warn(`[ProxyFetch] MITM bypass failed: ${error.message}`);
+
+      const bypassRefused = error?.code === "ECONNREFUSED" || error?.cause?.code === "ECONNREFUSED";
+      const bypassReset = error?.code === "ECONNRESET" || error?.cause?.code === "ECONNRESET";
+
+      if (!bypassRefused && !bypassReset) {
+        console.warn(`[ProxyFetch] MITM bypass failed, falling back to direct fetch: ${error.message}`);
+      }
     }
   }
 

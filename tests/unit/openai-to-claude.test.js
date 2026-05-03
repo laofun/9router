@@ -122,6 +122,26 @@ describe("openaiToClaudeRequest", () => {
     });
   });
 
+  describe("thinking conversion", () => {
+    it("should convert reasoning_effort none to Claude thinking disabled", () => {
+      const result = openaiToClaudeRequest("claude-sonnet-4.5", {
+        messages: [{ role: "user", content: "Hello" }],
+        reasoning_effort: "none"
+      }, false);
+
+      expect(result.thinking).toEqual({ type: "disabled" });
+    });
+
+    it("should preserve explicit Claude disabled thinking", () => {
+      const result = openaiToClaudeRequest("claude-sonnet-4.5", {
+        messages: [{ role: "user", content: "Hello" }],
+        thinking: { type: "disabled" }
+      }, false);
+
+      expect(result.thinking).toEqual({ type: "disabled" });
+    });
+  });
+
   describe("tool_choice conversion", () => {
     const baseBody = {
       messages: [{ role: "user", content: "Hello" }],

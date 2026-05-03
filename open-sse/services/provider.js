@@ -339,18 +339,49 @@ export function isLastMessageFromUser(body) {
   return lastMsg?.role === "user";
 }
 
+export function getThinkingIntent(body) {
+  if (!body || typeof body !== "object") return "inherit";
+
+  if (body.thinking?.type === "disabled") return "disabled";
+  if (typeof body.reasoning_effort === "string" && body.reasoning_effort.toLowerCase() === "none") return "disabled";
+
+  if (body.thinking === true || body.enable_thinking === true) return "enabled";
+  if (body.thinking?.type === "enabled") return "enabled";
+  if (typeof body.reasoning_effort === "string" && body.reasoning_effort) return "enabled";
+
+  return "inherit";
+}
+
 // Check if request has thinking config
 export function hasThinkingConfig(body) {
-  return !!(body.reasoning_effort || body.thinking?.type === "enabled");
+  return getThinkingIntent(body) !== "inherit";
+}
+
+export function applyProviderThinkingConfig(body, providerThinking) {
+  if (!providerThinking?.mode || providerThinking.mode === "auto") return body;
+  if (getThinkingIntent(body) !== "inherit") return body;
+
+  const mode = providerThinking.mode;
+  if (mode === "on") {
+    return { ...body, thinking: { type: "enabled", budget_tokens: 10000 } };
+  }
+  if (mode === "off") {
+    return { ...body, thinking: { type: "disabled" } };
+  }
+  return { ...body, reasoning_effort: mode };
 }
 
 // Normalize thinking config based on last message role
-// - If lastMessage is not user → remove thinking config
-// - If lastMessage is user AND has thinking config → keep it (force enable)
+// - If lastMessage is not user → remove explicit enablement
+// - Preserve explicit disablement so defaults cannot re-enable it later
 export function normalizeThinkingConfig(body) {
   if (!isLastMessageFromUser(body)) {
-    delete body.reasoning_effort;
-    delete body.thinking;
+    if (body.reasoning_effort && body.reasoning_effort.toLowerCase() !== "none") {
+      delete body.reasoning_effort;
+    }
+    if (body.thinking?.type === "enabled") {
+      delete body.thinking;
+    }
   }
   return body;
 }

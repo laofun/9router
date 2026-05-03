@@ -192,7 +192,7 @@ Respond ONLY with the JSON object, no other text.`);
     };
     const budget = effortToBudget[body.reasoning_effort.toLowerCase()];
     if (budget === 0) {
-      // none → no thinking
+      result.thinking = { type: "disabled" };
     } else if (budget) {
       result.thinking = { type: "enabled", budget_tokens: budget };
     }
