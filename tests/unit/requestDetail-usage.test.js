@@ -1,7 +1,29 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import { extractUsageFromResponse } from "../../open-sse/handlers/chatCore/requestDetail.js";
 
 describe("extractUsageFromResponse", () => {
+  let tempDir;
+
+  beforeEach(() => {
+    vi.resetModules();
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "n9router-request-details-"));
+    process.env.DATA_DIR = tempDir;
+    process.env.OBSERVABILITY_ENABLED = "true";
+    process.env.OBSERVABILITY_BATCH_SIZE = "5000";
+    process.env.OBSERVABILITY_FLUSH_INTERVAL_MS = "60000";
+  });
+
+  afterEach(() => {
+    delete process.env.DATA_DIR;
+    delete process.env.OBSERVABILITY_ENABLED;
+    delete process.env.OBSERVABILITY_BATCH_SIZE;
+    delete process.env.OBSERVABILITY_FLUSH_INTERVAL_MS;
+    if (tempDir) fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
   it("extracts cached tokens from OpenAI Responses usage", () => {
     const usage = extractUsageFromResponse({
       usage: {
@@ -35,5 +57,39 @@ describe("extractUsageFromResponse", () => {
       cached_tokens: 800,
       reasoning_tokens: 25,
     });
+  });
+
+  it("stores compact request detail payloads instead of large duplicated blobs", async () => {
+    process.env.OBSERVABILITY_BATCH_SIZE = "1";
+    vi.doMock("@/lib/localDb", () => ({
+      getSettings: vi.fn(async () => ({
+        enableObservability: true,
+        observabilityBatchSize: 1,
+        observabilityFlushIntervalMs: 60000,
+        observabilityMaxJsonSize: 5,
+      })),
+    }));
+    const requestDetailsDb = await import("@/lib/requestDetailsDb.js");
+
+    await requestDetailsDb.saveRequestDetail({
+      id: "detail-large",
+      provider: "anthropic",
+      model: "claude-3-5-haiku",
+      request: {
+        body: {
+          messages: [{ role: "user", content: "x".repeat(200000) }],
+        },
+      },
+      providerRequest: { huge: "y".repeat(200000) },
+      providerResponse: { huge: "z".repeat(200000) },
+      response: { huge: "w".repeat(200000) },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const details = await requestDetailsDb.getRequestDetails({ pageSize: 10 });
+    const saved = details.details.find((detail) => detail.id === "detail-large");
+
+    expect(saved).toBeDefined();
+    expect(JSON.stringify(saved).length).toBeLessThan(20000);
   });
 });

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { EventEmitter } from "events";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -15,6 +16,10 @@ describe("usageDb cached token stats", () => {
 
   beforeEach(() => {
     vi.resetModules();
+    global._pendingRequests = { byModel: {}, byAccount: {} };
+    global._pendingTimers = {};
+    global._lastErrorProvider = { provider: "", ts: 0 };
+    global._statsEmitter = undefined;
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "n9router-usage-"));
     process.env.DATA_DIR = tempDir;
   });
@@ -87,5 +92,137 @@ describe("usageDb cached token stats", () => {
     expect(stats.totalCachedTokens).toBe(700);
     expect(stats.byProvider.anthropic.cachedTokens).toBe(700);
     expect(stats.byModel["claude (anthropic)"].cachedTokens).toBe(700);
+  });
+
+  it("builds active request data without rereading usage db", async () => {
+    const usageDb = await import("@/lib/usageDb.js");
+    const db = await usageDb.getUsageDb();
+    const readSpy = vi.spyOn(db, "read");
+
+    usageDb.trackPendingRequest("claude-3-5-haiku", "anthropic", "conn-1", true);
+    readSpy.mockClear();
+
+    const result = await usageDb.getActiveRequests();
+
+    expect(readSpy).not.toHaveBeenCalled();
+    expect(result.activeRequests).toEqual([
+      {
+        model: "claude-3-5-haiku",
+        provider: "anthropic",
+        account: expect.any(String),
+        count: 1,
+      },
+    ]);
+  });
+
+  it("coalesces multiple usage update events into one refresh window", async () => {
+    vi.useFakeTimers();
+
+    const statsEmitter = new EventEmitter();
+    const getUsageStats = vi.fn(async () => ({ totalRequests: 1 }));
+    const getActiveRequests = vi.fn(async () => ({
+      activeRequests: [],
+      recentRequests: [],
+      errorProvider: "",
+    }));
+
+    vi.doMock("@/lib/usageDb", () => ({
+      getUsageStats,
+      getActiveRequests,
+      statsEmitter,
+    }));
+
+    const { GET } = await import("@/app/api/usage/stream/route.js");
+    const response = await GET();
+    const reader = response.body.getReader();
+
+    await reader.read();
+    getUsageStats.mockClear();
+
+    statsEmitter.emit("update");
+    statsEmitter.emit("update");
+    statsEmitter.emit("update");
+
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(getUsageStats).toHaveBeenCalledTimes(1);
+
+    await reader.cancel();
+    vi.useRealTimers();
+  });
+
+  it("does not use sync fs APIs when appending request logs", async () => {
+    vi.resetModules();
+    vi.doUnmock("@/lib/usageDb");
+    vi.doUnmock("@/lib/usageDb.js");
+
+    const appendFileSyncSpy = vi.spyOn(fs, "appendFileSync");
+    const readFileSyncSpy = vi.spyOn(fs, "readFileSync");
+    const writeFileSyncSpy = vi.spyOn(fs, "writeFileSync");
+    const usageDb = await import("@/lib/usageDb.js");
+
+    await usageDb.appendRequestLog({
+      model: "claude-3-5-haiku",
+      provider: "anthropic",
+      connectionId: "conn-1",
+      status: "200 OK",
+    });
+
+    expect(appendFileSyncSpy).not.toHaveBeenCalled();
+    expect(readFileSyncSpy).not.toHaveBeenCalled();
+    expect(writeFileSyncSpy).not.toHaveBeenCalled();
+  });
+
+  it("deletes zero-count pending request keys after request completion", async () => {
+    vi.resetModules();
+    vi.doUnmock("@/lib/usageDb");
+    vi.doUnmock("@/lib/usageDb.js");
+
+    const usageDb = await import("@/lib/usageDb.js");
+
+    usageDb.trackPendingRequest("claude-3-5-haiku", "anthropic", "conn-1", true);
+    usageDb.trackPendingRequest("claude-3-5-haiku", "anthropic", "conn-1", false);
+
+    const result = await usageDb.getActiveRequests();
+
+    expect(result.activeRequests).toEqual([]);
+    expect(global._pendingRequests.byModel["claude-3-5-haiku (anthropic)"]).toBeUndefined();
+    expect(global._pendingRequests.byAccount["conn-1"]?.["claude-3-5-haiku (anthropic)"]).toBeUndefined();
+  });
+
+  it("reuses aggregate usage stats within a short cache window", async () => {
+    vi.resetModules();
+
+    const getProviderConnections = vi.fn(async () => []);
+    const getApiKeys = vi.fn(async () => []);
+    const getProviderNodes = vi.fn(async () => []);
+
+    vi.doMock("@/lib/localDb.js", () => ({
+      getProviderConnections,
+      getApiKeys,
+      getProviderNodes,
+      getPricingForModel: vi.fn(async () => null),
+    }));
+
+    const usageDb = await import("@/lib/usageDb.js");
+
+    await usageDb.saveRequestUsage({
+      provider: "openai",
+      model: "gpt-4",
+      tokens: { prompt_tokens: 100, completion_tokens: 20 },
+      timestamp: new Date().toISOString(),
+      endpoint: "/v1/chat/completions",
+    });
+
+    getProviderConnections.mockClear();
+    getApiKeys.mockClear();
+    getProviderNodes.mockClear();
+
+    await usageDb.getUsageStats("7d");
+    await usageDb.getUsageStats("7d");
+
+    expect(getProviderConnections).toHaveBeenCalledTimes(1);
+    expect(getApiKeys).toHaveBeenCalledTimes(1);
+    expect(getProviderNodes).toHaveBeenCalledTimes(1);
   });
 });

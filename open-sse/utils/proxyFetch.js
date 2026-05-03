@@ -153,6 +153,44 @@ async function createBypassRequest(parsedUrl, realIP, options) {
 
   return new Promise((resolve, reject) => {
     const socket = new net.Socket();
+    let req = null;
+    let settled = false;
+
+    const cleanupAbortListener = () => {
+      if (options.signal && abortHandler) {
+        options.signal.removeEventListener("abort", abortHandler);
+      }
+    };
+
+    const finishReject = (error) => {
+      if (settled) return;
+      settled = true;
+      cleanupAbortListener();
+      reject(error);
+    };
+
+    const finishResolve = (response) => {
+      if (settled) return;
+      settled = true;
+      cleanupAbortListener();
+      resolve(response);
+    };
+
+    const abortHandler = () => {
+      const error = new Error("Request aborted");
+      error.name = "AbortError";
+      req?.destroy(error);
+      socket.destroy(error);
+      finishReject(error);
+    };
+
+    if (options.signal) {
+      if (options.signal.aborted) {
+        abortHandler();
+        return;
+      }
+      options.signal.addEventListener("abort", abortHandler, { once: true });
+    }
 
     socket.connect(HTTPS_PORT, realIP, () => {
       const reqOptions = {
@@ -167,7 +205,7 @@ async function createBypassRequest(parsedUrl, realIP, options) {
         },
       };
 
-      const req = https.request(reqOptions, (res) => {
+      req = https.request(reqOptions, (res) => {
         const response = {
           ok: res.statusCode >= HTTP_SUCCESS_MIN && res.statusCode < HTTP_SUCCESS_MAX,
           status: res.statusCode,
@@ -181,17 +219,17 @@ async function createBypassRequest(parsedUrl, realIP, options) {
           },
           json: async () => JSON.parse(await response.text()),
         };
-        resolve(response);
+        finishResolve(response);
       });
 
-      req.on("error", reject);
+      req.on("error", finishReject);
       if (options.body) {
         req.write(typeof options.body === "string" ? options.body : JSON.stringify(options.body));
       }
       req.end();
     });
 
-    socket.on("error", reject);
+    socket.on("error", finishReject);
   });
 }
 
@@ -234,6 +272,7 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
       const realIP = await resolveRealIP(parsedUrl.hostname);
       if (realIP) return await createBypassRequest(parsedUrl, realIP, options);
     } catch (error) {
+      if (error?.name === "AbortError") throw error;
       console.warn(`[ProxyFetch] MITM bypass failed: ${error.message}`);
     }
   }

@@ -2,35 +2,47 @@ import { getUsageStats, statsEmitter, getActiveRequests } from "@/lib/usageDb";
 
 export const dynamic = "force-dynamic";
 
+const REFRESH_DELAY_MS = 200;
+
+function cleanupState(state) {
+  state.closed = true;
+  statsEmitter.off("update", state.scheduleRefresh);
+  statsEmitter.off("pending", state.sendPending);
+  clearInterval(state.keepalive);
+  clearTimeout(state.refreshTimer);
+  state.refreshTimer = null;
+}
+
 export async function GET() {
   const encoder = new TextEncoder();
-  const state = { closed: false, keepalive: null, send: null, sendPending: null, cachedStats: null };
+  const state = { closed: false, keepalive: null, refreshTimer: null, send: null, sendPending: null, scheduleRefresh: null, cachedStats: null };
 
   const stream = new ReadableStream({
     async start(controller) {
-      // Full stats refresh (heavy) + immediate lightweight push
       state.send = async () => {
         if (state.closed) return;
         try {
-          // Push lightweight update immediately so UI reflects changes fast
           if (state.cachedStats) {
             const { activeRequests, recentRequests, errorProvider } = await getActiveRequests();
             const quickStats = { ...state.cachedStats, activeRequests, recentRequests, errorProvider };
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(quickStats)}\n\n`));
           }
-          // Then do full recalc and update cache
           const stats = await getUsageStats();
           state.cachedStats = stats;
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(stats)}\n\n`));
         } catch {
-          state.closed = true;
-          statsEmitter.off("update", state.send);
-          statsEmitter.off("pending", state.sendPending);
-          clearInterval(state.keepalive);
+          cleanupState(state);
         }
       };
 
-      // Lightweight push: only refresh activeRequests + recentRequests on pending changes
+      state.scheduleRefresh = () => {
+        if (state.closed || state.refreshTimer) return;
+        state.refreshTimer = setTimeout(async () => {
+          state.refreshTimer = null;
+          await state.send();
+        }, REFRESH_DELAY_MS);
+      };
+
       state.sendPending = async () => {
         if (state.closed || !state.cachedStats) return;
         try {
@@ -38,16 +50,13 @@ export async function GET() {
           const stats = { ...state.cachedStats, activeRequests, recentRequests, errorProvider };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(stats)}\n\n`));
         } catch {
-          state.closed = true;
-          statsEmitter.off("update", state.send);
-          statsEmitter.off("pending", state.sendPending);
-          clearInterval(state.keepalive);
+          cleanupState(state);
         }
       };
 
       await state.send();
 
-      statsEmitter.on("update", state.send);
+      statsEmitter.on("update", state.scheduleRefresh);
       statsEmitter.on("pending", state.sendPending);
 
       state.keepalive = setInterval(() => {
@@ -55,17 +64,13 @@ export async function GET() {
         try {
           controller.enqueue(encoder.encode(": ping\n\n"));
         } catch {
-          state.closed = true;
-          clearInterval(state.keepalive);
+          cleanupState(state);
         }
       }, 25000);
     },
 
     cancel() {
-      state.closed = true;
-      statsEmitter.off("update", state.send);
-      statsEmitter.off("pending", state.sendPending);
-      clearInterval(state.keepalive);
+      cleanupState(state);
     },
   });
 

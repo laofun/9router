@@ -178,6 +178,17 @@ if (!global._pendingTimers) global._pendingTimers = {};
 const pendingTimers = global._pendingTimers;
 
 const PENDING_TIMEOUT_MS = 60 * 1000; // 1 minute
+const STATS_CACHE_TTL_MS = 1000;
+
+let statsCache = new Map();
+
+function cloneStats(stats) {
+  return JSON.parse(JSON.stringify(stats));
+}
+
+function invalidateStatsCache() {
+  statsCache.clear();
+}
 
 /**
  * Track a pending request
@@ -191,37 +202,51 @@ export function trackPendingRequest(model, provider, connectionId, started, erro
   const modelKey = provider ? `${model} (${provider})` : model;
   const timerKey = `${connectionId}|${modelKey}`;
 
-  // Track by model
+  const cleanupPendingKeys = () => {
+    if (pendingRequests.byModel[modelKey] === 0) {
+      delete pendingRequests.byModel[modelKey];
+    }
+    if (connectionId && pendingRequests.byAccount[connectionId]?.[modelKey] === 0) {
+      delete pendingRequests.byAccount[connectionId][modelKey];
+      if (Object.keys(pendingRequests.byAccount[connectionId]).length === 0) {
+        delete pendingRequests.byAccount[connectionId];
+      }
+    }
+  };
+
   if (!pendingRequests.byModel[modelKey]) pendingRequests.byModel[modelKey] = 0;
   pendingRequests.byModel[modelKey] = Math.max(0, pendingRequests.byModel[modelKey] + (started ? 1 : -1));
 
-  // Track by account
   if (connectionId) {
     if (!pendingRequests.byAccount[connectionId]) pendingRequests.byAccount[connectionId] = {};
     if (!pendingRequests.byAccount[connectionId][modelKey]) pendingRequests.byAccount[connectionId][modelKey] = 0;
     pendingRequests.byAccount[connectionId][modelKey] = Math.max(0, pendingRequests.byAccount[connectionId][modelKey] + (started ? 1 : -1));
   }
 
+  cleanupPendingKeys();
+
+  const clearPendingState = () => {
+    if (pendingRequests.byModel[modelKey] > 0) {
+      pendingRequests.byModel[modelKey] = 0;
+    }
+    if (connectionId && pendingRequests.byAccount[connectionId]?.[modelKey] > 0) {
+      pendingRequests.byAccount[connectionId][modelKey] = 0;
+    }
+    cleanupPendingKeys();
+  };
+
   if (started) {
-    // Safety timeout: force-clear if END is never called (client disconnect, crash, etc.)
     clearTimeout(pendingTimers[timerKey]);
     pendingTimers[timerKey] = setTimeout(() => {
       delete pendingTimers[timerKey];
-      if (pendingRequests.byModel[modelKey] > 0) {
-        pendingRequests.byModel[modelKey] = 0;
-      }
-      if (connectionId && pendingRequests.byAccount[connectionId]?.[modelKey] > 0) {
-        pendingRequests.byAccount[connectionId][modelKey] = 0;
-      }
+      clearPendingState();
       statsEmitter.emit("pending");
     }, PENDING_TIMEOUT_MS);
   } else {
-    // END called normally — cancel the safety timer
     clearTimeout(pendingTimers[timerKey]);
     delete pendingTimers[timerKey];
   }
 
-  // Track error provider (auto-clears after 10s)
   if (!started && error && provider) {
     lastErrorProvider.provider = provider.toLowerCase();
     lastErrorProvider.ts = Date.now();
@@ -232,13 +257,13 @@ export function trackPendingRequest(model, provider, connectionId, started, erro
   statsEmitter.emit("pending");
 }
 
+
 /**
  * Lightweight: get only activeRequests + recentRequests without full stats recalc
  */
 export async function getActiveRequests() {
   const activeRequests = [];
 
-  // Build active requests from pending state
   let connectionMap = {};
   try {
     const { getProviderConnections } = await import("@/lib/localDb.js");
@@ -260,9 +285,7 @@ export async function getActiveRequests() {
     }
   }
 
-  // Get recent requests from history (re-read to get latest)
   const db = await getUsageDb();
-  await db.read();
   const history = db.data.history || [];
   const seen = new Set();
   const recentRequests = [...history]
@@ -382,6 +405,7 @@ export async function saveRequestUsage(entry) {
     }
 
     await db.write();
+    invalidateStatsCache();
     statsEmitter.emit("update");
   } catch (error) {
     console.error("Failed to save usage stats:", error);
@@ -444,7 +468,6 @@ export async function appendRequestLog({ model, provider, connectionId, tokens, 
     const p = provider?.toUpperCase() || "-";
     const m = model || "-";
 
-    // Resolve account name
     let account = connectionId ? connectionId.slice(0, 8) : "-";
     try {
       const { getProviderConnections } = await import("@/lib/localDb.js");
@@ -460,14 +483,7 @@ export async function appendRequestLog({ model, provider, connectionId, tokens, 
 
     const line = `${timestamp} | ${m} | ${p} | ${account} | ${sent} | ${received} | ${status}\n`;
 
-    fs.appendFileSync(LOG_FILE, line);
-
-    // Trim to keep only last 200 lines
-    const content = fs.readFileSync(LOG_FILE, "utf-8");
-    const lines = content.trim().split("\n");
-    if (lines.length > 200) {
-      fs.writeFileSync(LOG_FILE, lines.slice(-200).join("\n") + "\n");
-    }
+    await fs.promises.appendFile(LOG_FILE, line);
   } catch (error) {
     console.error("Failed to append to log.txt:", error.message);
   }
@@ -569,6 +585,12 @@ const PERIOD_MS = { "24h": 86400000, "7d": 604800000, "30d": 2592000000, "60d": 
  * @param {"24h"|"7d"|"30d"|"60d"|"all"} period - Time period to filter
  */
 export async function getUsageStats(period = "all") {
+  const cacheNow = Date.now();
+  const cached = statsCache.get(period);
+  if (cached && (cacheNow - cached.ts) < STATS_CACHE_TTL_MS) {
+    return cloneStats(cached.value);
+  }
+
   const db = await getUsageDb();
   const history = db.data.history || [];
   const dailySummary = db.data.dailySummary || {};
@@ -899,6 +921,7 @@ export async function getUsageStats(period = "all") {
     }
   }
 
+  statsCache.set(period, { ts: now, value: cloneStats(stats) });
   return stats;
 }
 
