@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, Button, Badge, Input, ModelSelectModal } from "@/shared/components";
 import MultiModelMappingEditor from "./MultiModelMappingEditor";
 import { useMitmMultiModelMappings } from "./useMitmMultiModelMappings";
+import { getMitmDnsGateState } from "./mitmDnsGateState";
 import { TOOL_HOSTS } from "@/shared/constants/mitmToolHosts";
 import Image from "next/image";
 
@@ -20,6 +21,7 @@ export default function MitmToolCard({
   serverRunning,
   dnsActive,
   hasCachedPassword,
+  mitmStatus,
   apiKeys,
   activeProviders,
   hasActiveProviders,
@@ -54,7 +56,10 @@ export default function MitmToolCard({
   } = useMitmMultiModelMappings(tool.id);
 
   const mitmHosts = TOOL_HOSTS[tool.id] ?? [];
-  const isWindows = typeof navigator !== "undefined" && navigator.userAgent?.includes("Windows");
+  const { isWindows, isAdmin, needsSudoPassword, dnsToggleBlocked } = getMitmDnsGateState({
+    hasCachedPassword,
+    status: mitmStatus,
+  });
 
   useEffect(() => {
     if (isExpanded) loadSavedMappings();
@@ -62,9 +67,9 @@ export default function MitmToolCard({
 
 
   const handleDnsToggle = () => {
-    if (!serverRunning) return;
+    if (!serverRunning || dnsToggleBlocked) return;
     const action = dnsActive ? "disable" : "enable";
-    if (isWindows || hasCachedPassword) {
+    if (!needsSudoPassword) {
       doDnsAction(action, "");
     } else {
       setPendingDnsAction(action);
@@ -220,7 +225,7 @@ export default function MitmToolCard({
               {dnsActive ? (
                 <button
                   onClick={handleDnsToggle}
-                  disabled={!serverRunning || loading}
+                  disabled={!serverRunning || loading || dnsToggleBlocked}
                   className="px-4 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-500 font-medium text-xs flex items-center gap-1.5 hover:bg-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="material-symbols-outlined text-[16px]">stop_circle</span>
@@ -229,7 +234,7 @@ export default function MitmToolCard({
               ) : (
                 <button
                   onClick={handleDnsToggle}
-                  disabled={!serverRunning || loading}
+                  disabled={!serverRunning || loading || dnsToggleBlocked}
                   className="px-4 py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-medium text-xs flex items-center gap-1.5 hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="material-symbols-outlined text-[16px]">play_circle</span>
@@ -248,6 +253,12 @@ export default function MitmToolCard({
                 <div className="flex items-center gap-2 px-2 py-1.5 rounded text-xs bg-red-500/10 text-red-600">
                   <span className="material-symbols-outlined text-[14px]">error</span>
                   <span>{errorMessage}</span>
+                </div>
+              )}
+              {isWindows && !isAdmin && (
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded text-xs bg-red-500/10 text-red-600 border border-red-500/20">
+                  <span className="material-symbols-outlined text-[14px]">shield_lock</span>
+                  <span>Administrator required — restart 9Router as Administrator to change MITM DNS</span>
                 </div>
               )}
             </div>

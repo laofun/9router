@@ -96,6 +96,8 @@ export async function GET() {
       dnsStatus: status.dnsStatus || {},
       hasCachedPassword: !!getCachedPassword() || !!(await loadEncryptedPassword()),
       isAdmin: checkIsAdmin(),
+      serverPlatform: process.platform,
+      isWindows: isWin,
       mitmRouterBaseUrl:
         (settings.mitmRouterBaseUrl && String(settings.mitmRouterBaseUrl).trim()) ||
         DEFAULT_MITM_ROUTER_BASE,

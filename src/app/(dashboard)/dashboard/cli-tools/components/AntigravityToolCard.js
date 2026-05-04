@@ -92,11 +92,11 @@ export default function AntigravityToolCard({
     }
   };
 
-  // Windows uses UAC dialog, no sudo needed
-  const isWindows = typeof navigator !== "undefined" && navigator.userAgent?.includes("Windows");
+  const isWindows = status?.isWindows === true;
+  const needsSudoPassword = !isWindows && !status?.hasCachedPassword;
 
   const handleStart = () => {
-    if (isWindows || status?.hasCachedPassword) {
+    if (!needsSudoPassword) {
       doStart("");
     } else {
       setShowPasswordModal(true);
@@ -105,7 +105,7 @@ export default function AntigravityToolCard({
   };
 
   const handleStop = () => {
-    if (isWindows || status?.hasCachedPassword) {
+    if (!needsSudoPassword) {
       doStop("");
     } else {
       setShowPasswordModal(true);

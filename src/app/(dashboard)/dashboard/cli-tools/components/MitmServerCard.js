@@ -20,7 +20,8 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
   const [actionError, setActionError] = useState(null);
   const [mitmRouterBaseUrl, setMitmRouterBaseUrl] = useState(DEFAULT_MITM_ROUTER_BASE);
 
-  const isWindows = typeof navigator !== "undefined" && navigator.userAgent?.includes("Windows");
+  const isWindows = status?.isWindows === true;
+  const needsSudoPassword = !isWindows && !status?.hasCachedPassword;
   const isAdmin = status?.isAdmin !== false;
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
 
   const handleAction = (action) => {
     setActionError(null);
-    if (isWindows || status?.hasCachedPassword) {
+    if (!needsSudoPassword) {
       doAction(action, "");
     } else {
       setPendingAction(action);
