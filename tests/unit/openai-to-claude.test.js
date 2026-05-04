@@ -142,6 +142,46 @@ describe("openaiToClaudeRequest", () => {
     });
   });
 
+  describe("tool conversion", () => {
+    it("should preserve custom Claude Code tools but strip invalid model fields", () => {
+      const result = openaiToClaudeRequest("claude-haiku-4-5-20251001", {
+        messages: [{ role: "user", content: "Hello" }],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "extract_terms",
+              description: "Extract terms",
+              parameters: { type: "object", properties: {}, required: [] }
+            }
+          },
+          {
+            type: "custom",
+            name: "code_interpreter",
+            description: "Execute code",
+            input_schema: { type: "object", properties: { code: { type: "string" } }, required: ["code"] },
+            model: "cc/claude-opus-4-7"
+          }
+        ]
+      }, false);
+
+      expect(result.tools).toEqual([
+        {
+          name: "extract_terms",
+          description: "Extract terms",
+          input_schema: { type: "object", properties: {}, required: [] }
+        },
+        {
+          type: "custom",
+          name: "code_interpreter",
+          description: "Execute code",
+          input_schema: { type: "object", properties: { code: { type: "string" } }, required: ["code"] },
+          cache_control: { type: "ephemeral", ttl: "1h" }
+        }
+      ]);
+    });
+  });
+
   describe("tool_choice conversion", () => {
     const baseBody = {
       messages: [{ role: "user", content: "Hello" }],

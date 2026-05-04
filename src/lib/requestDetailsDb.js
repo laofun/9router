@@ -45,8 +45,15 @@ async function getDb() {
   if (!dbInstance) {
     const adapter = new JSONFile(DB_FILE);
     const db = new Low(adapter, { records: [] });
-    await db.read();
+    try {
+      await db.read();
+    } catch (error) {
+      console.error("[requestDetailsDb] Failed to read request-details.json, recreating:", error);
+      db.data = { records: [] };
+      await db.write();
+    }
     if (!db.data?.records) db.data = { records: [] };
+    await repairDbShape(db);
     dbInstance = db;
   }
   return dbInstance;
@@ -108,15 +115,127 @@ function safeJsonStringify(obj, maxSize) {
 }
 
 function sanitizeHeaders(headers) {
-  if (!headers || typeof headers !== "object") return {};
+  if (!headers || typeof headers !== "object" || Array.isArray(headers)) return {};
   const sensitiveKeys = ["authorization", "x-api-key", "cookie", "token", "api-key"];
-  const sanitized = { ...headers };
-  for (const key of Object.keys(sanitized)) {
-    if (sensitiveKeys.some(s => key.toLowerCase().includes(s))) {
-      delete sanitized[key];
+  const sanitized = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (sensitiveKeys.some(s => key.toLowerCase().includes(s))) continue;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      sanitized[key] = value;
     }
   }
   return sanitized;
+}
+
+function isPlainObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+function isJsonPrimitive(value) {
+  return value === null || ["string", "number", "boolean"].includes(typeof value);
+}
+
+function sanitizeJsonValue(value) {
+  if (isJsonPrimitive(value)) return value;
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => sanitizeJsonValue(item))
+      .filter((item) => item !== undefined);
+  }
+  if (!isPlainObject(value)) return undefined;
+
+  const sanitized = {};
+  for (const [key, nested] of Object.entries(value)) {
+    const safeValue = sanitizeJsonValue(nested);
+    if (safeValue !== undefined) sanitized[key] = safeValue;
+  }
+  return sanitized;
+}
+
+function sanitizeNumericObject(value) {
+  if (!isPlainObject(value)) return {};
+  const sanitized = {};
+  for (const [key, nested] of Object.entries(value)) {
+    if (typeof nested === "number" && Number.isFinite(nested)) sanitized[key] = nested;
+    else if (nested === true) sanitized[key] = nested;
+  }
+  return sanitized;
+}
+
+function sanitizeRequestSlot(value) {
+  const safeValue = sanitizeJsonValue(value);
+  if (!isPlainObject(safeValue)) return {};
+  if (safeValue.headers) safeValue.headers = sanitizeHeaders(safeValue.headers);
+  return safeValue;
+}
+
+function sanitizeProviderRequestSlot(value) {
+  const safeValue = sanitizeJsonValue(value);
+  return isPlainObject(safeValue) ? safeValue : {};
+}
+
+function sanitizeProviderResponseSlot(value) {
+  if (typeof value === "string") return value;
+  const safeValue = sanitizeJsonValue(value);
+  if (!isPlainObject(safeValue)) return null;
+  for (const forbiddenKey of ["ok", "url", "status", "statusText", "bodyUsed", "headers", "messages", "output", "choices"]) {
+    delete safeValue[forbiddenKey];
+  }
+  return Object.keys(safeValue).length > 0 ? safeValue : null;
+}
+
+function sanitizeResponseSlot(value) {
+  const safeValue = sanitizeJsonValue(value);
+  if (!isPlainObject(safeValue)) return {};
+  const response = {};
+  if (typeof safeValue.content === "string") response.content = safeValue.content;
+  else if (Array.isArray(safeValue.content)) response.content = safeValue.content;
+  if (typeof safeValue.thinking === "string" || safeValue.thinking === null) response.thinking = safeValue.thinking;
+  if (typeof safeValue.type === "string") response.type = safeValue.type;
+  if (typeof safeValue.finish_reason === "string") response.finish_reason = safeValue.finish_reason;
+  if (typeof safeValue.finishReason === "string") response.finishReason = safeValue.finishReason;
+  return response;
+}
+
+function truncateLargeField(value, maxSize) {
+  const str = safeJsonStringify(value, maxSize);
+  try {
+    return JSON.parse(str);
+  } catch {
+    return {};
+  }
+}
+
+function normalizeRequestDetail(item) {
+  const normalized = {
+    id: typeof item?.id === "string" && item.id.trim() ? item.id : generateDetailId(item?.model),
+    provider: typeof item?.provider === "string" ? item.provider : null,
+    model: typeof item?.model === "string" ? item.model : null,
+    connectionId: typeof item?.connectionId === "string" ? item.connectionId : null,
+    timestamp: typeof item?.timestamp === "string" ? item.timestamp : new Date().toISOString(),
+    status: typeof item?.status === "string" ? item.status : null,
+    latency: sanitizeNumericObject(item?.latency),
+    tokens: sanitizeNumericObject(item?.tokens),
+    request: sanitizeRequestSlot(item?.request),
+    providerRequest: sanitizeProviderRequestSlot(item?.providerRequest),
+    providerResponse: sanitizeProviderResponseSlot(item?.providerResponse),
+    response: sanitizeResponseSlot(item?.response),
+  };
+
+  return normalized;
+}
+
+async function repairDbShape(db) {
+  const records = Array.isArray(db?.data?.records) ? db.data.records : [];
+  const repairedRecords = records
+    .map((record) => normalizeRequestDetail(record))
+    .filter((record) => typeof record.id === "string" && record.id.trim());
+
+  const changed = !db?.data || !Array.isArray(db.data.records) || repairedRecords.length !== records.length || JSON.stringify({ records: repairedRecords }) !== JSON.stringify(db.data);
+  db.data = { records: repairedRecords };
+  if (changed) await db.write();
 }
 
 function generateDetailId(model) {
@@ -138,36 +257,13 @@ async function flushToDatabase() {
     const config = await getObservabilityConfig();
 
     for (const item of itemsToSave) {
-      if (!item.id) item.id = generateDetailId(item.model);
-      if (!item.timestamp) item.timestamp = new Date().toISOString();
-      if (item.request?.headers) item.request.headers = sanitizeHeaders(item.request.headers);
+      const record = normalizeRequestDetail(item);
 
-      // Serialize large fields
-      const record = {
-        id: item.id,
-        provider: item.provider || null,
-        model: item.model || null,
-        connectionId: item.connectionId || null,
-        timestamp: item.timestamp,
-        status: item.status || null,
-        latency: item.latency || {},
-        tokens: item.tokens || {},
-        request: item.request || {},
-        providerRequest: item.providerRequest || {},
-        providerResponse: item.providerResponse || {},
-        response: item.response || {},
-      };
-
-      // Truncate oversized JSON fields
       const maxSize = config.maxJsonSize;
       for (const field of ["request", "providerRequest", "providerResponse", "response"]) {
-        const str = JSON.stringify(record[field]);
-        if (str.length > maxSize) {
-          record[field] = { _truncated: true, _originalSize: str.length, _preview: str.substring(0, 200) };
-        }
+        record[field] = truncateLargeField(record[field], maxSize);
       }
 
-      // Upsert: replace existing record with same id
       const idx = db.data.records.findIndex(r => r.id === record.id);
       if (idx !== -1) {
         db.data.records[idx] = record;

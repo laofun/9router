@@ -17,6 +17,32 @@ import { handleNonStreamingResponse } from "./chatCore/nonStreamingHandler.js";
 import { handleStreamingResponse, buildOnStreamComplete } from "./chatCore/streamingHandler.js";
 import { detectClientTool, isNativePassthrough } from "../utils/clientDetector.js";
 
+function sanitizeClaudePassthroughTools(tools) {
+  if (!Array.isArray(tools)) return tools;
+
+  return tools
+    .map((tool) => {
+      if (!tool || typeof tool !== "object" || Array.isArray(tool)) return null;
+      const toolType = typeof tool.type === "string" ? tool.type : undefined;
+      const isHostedClaudeTool = toolType && /^.+_\d{8}$/.test(toolType);
+      const normalizedHostedModel = typeof tool.model === "string"
+        ? tool.model.replace(/^cc\//, "")
+        : undefined;
+      const normalized = {
+        ...(toolType ? { type: toolType } : {}),
+        ...(typeof tool.name === "string" ? { name: tool.name } : {}),
+        ...(typeof tool.description === "string" ? { description: tool.description } : {}),
+        ...(tool.input_schema && typeof tool.input_schema === "object" && !Array.isArray(tool.input_schema)
+          ? { input_schema: tool.input_schema }
+          : {}),
+        ...(isHostedClaudeTool && normalizedHostedModel ? { model: normalizedHostedModel } : {}),
+      };
+
+      return typeof normalized.name === "string" ? normalized : null;
+    })
+    .filter(Boolean);
+}
+
 /**
  * Core chat handler - shared between SSE and Worker
  * @param {object} options.body - Request body
@@ -68,7 +94,11 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   let toolNameMap;
   if (passthrough) {
     log?.debug?.("PASSTHROUGH", `${clientTool} → ${provider} | native lossless`);
-    translatedBody = { ...body, model };
+    translatedBody = {
+      ...body,
+      ...(Array.isArray(body.tools) ? { tools: sanitizeClaudePassthroughTools(body.tools) } : {}),
+      model,
+    };
   } else {
     translatedBody = translateRequest(sourceFormat, targetFormat, model, body, stream, credentials, provider, reqLogger, stripList, connectionId, rtkEnabled, clientTool);
     if (!translatedBody) {

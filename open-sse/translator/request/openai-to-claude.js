@@ -137,27 +137,37 @@ Respond ONLY with the JSON object, no other text.`);
   if (body.tools && Array.isArray(body.tools)) {
     result.tools = [];
     for (const tool of body.tools) {
-      // Pass-through built-in tools (e.g. web_search_20250305) without prefix or conversion
       const toolType = tool.type;
-      if (toolType && toolType !== "function") {
+      const isBuiltInClaudeTool = typeof toolType === "string" && toolType.startsWith("web_");
+
+      // Pass through only known Claude built-in tools.
+      if (isBuiltInClaudeTool) {
         result.tools.push(tool);
         continue;
       }
 
       const toolData = toolType === "function" && tool.function ? tool.function : tool;
       const originalName = toolData.name;
+      if (!originalName || typeof originalName !== "string") continue;
 
-      // Claude OAuth requires prefixed tool names to avoid conflicts
-      const toolName = CLAUDE_OAUTH_TOOL_PREFIX + originalName;
+      // Claude OAuth requires prefixed tool names to avoid conflicts for function-style tools.
+      const toolName = toolType === "function"
+        ? CLAUDE_OAUTH_TOOL_PREFIX + originalName
+        : originalName;
 
       // Store mapping for response translation (prefixed → original)
-      toolNameMap.set(toolName, originalName);
+      if (toolType === "function") {
+        toolNameMap.set(toolName, originalName);
+      }
 
-      result.tools.push({
+      const normalizedTool = {
+        ...(toolType && toolType !== "function" ? { type: toolType } : {}),
         name: toolName,
         description: toolData.description || "",
         input_schema: toolData.parameters || toolData.input_schema || { type: "object", properties: {}, required: [] }
-      });
+      };
+
+      result.tools.push(normalizedTool);
     }
 
     if (result.tools.length > 0) {
