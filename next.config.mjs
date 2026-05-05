@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  eslint: {
+    // ESLint is run separately in CI; skip during `next build` to avoid blocking Docker builds.
+    ignoreDuringBuilds: true,
+  },
   // MITM runs as a separate Bun/Node process (src/mitm/server.js); standalone tracing
   // only picked up that entry file, not sibling requires (e.g. ./logger).
   outputFileTracingIncludes: {
