@@ -11,6 +11,11 @@ import { compressMessages, formatRtkLog } from "../rtk/index.js";
 const requestRegistry = new Map();
 const responseRegistry = new Map();
 
+function canonicalizeResponseModel(model) {
+  if (typeof model !== "string") return model;
+  return model.replace(/^cc\//, "");
+}
+
 // Track initialization state
 let initialized = false;
 
@@ -162,6 +167,22 @@ export function translateResponse(targetFormat, sourceFormat, chunk, state) {
 
   let results = [chunk];
   let openaiResults = null; // Store OpenAI intermediate results
+
+  if (state?.model) {
+    state.model = canonicalizeResponseModel(state.model);
+  }
+
+  if (chunk?.message?.model) {
+    chunk.message.model = canonicalizeResponseModel(chunk.message.model);
+  }
+
+  if (chunk?.model) {
+    chunk.model = canonicalizeResponseModel(chunk.model);
+  }
+
+  if (chunk?.response?.model) {
+    chunk.response.model = canonicalizeResponseModel(chunk.response.model);
+  }
 
   // Step 1: target -> openai (if target is not openai)
   if (targetFormat !== FORMATS.OPENAI) {
