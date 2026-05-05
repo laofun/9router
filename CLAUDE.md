@@ -137,15 +137,17 @@ Cloudflare Workers deployment for optional cloud sync relay. Has its own `wrangl
 
 ## Fork Status & Recent Work
 
-This is **`laofun/9router`** — a fork of `decolua/9router` (upstream) maintained under the **n9router** identity (package name, binary, config dir `~/.n9router`, appName `n9router`).
+This is **`laofun/9router`** — an independent fork of `decolua/9router`, maintained under the **n9router** identity (package name, binary, config dir `~/.n9router`, appName `n9router`).
 
 **Direction:** reliability hardening + Antigravity deep integration + self-hosted production polish. The fork intentionally diverges from upstream's provider-coverage focus. When considering a feature, ask: does it fit the n9router direction? If upstream solved a problem differently, that's fine — the fork has its own answer.
 
+**Upstream policy: demand-driven cherry-pick (decided 2026-05-05).** No scheduled sync. Upstream (`decolua/9router`) is a reference repo only. Cherry-pick individual commits when: (a) a user reports a bug upstream has fixed, or (b) a specific provider/feature is requested. Rationale: fork is 70 commits ahead, 90 files diverged (+8893 lines), has stronger test coverage (28 vs 17 test files), and different API signatures (`translateRequest` param order). Sync cost exceeds value.
+
 **Remotes:**
 - `origin` → `git@github.com:laofun/9router.git`
-- `upstream` → `https://github.com/decolua/9router.git`
+- `upstream` → `https://github.com/decolua/9router.git` (reference only)
 
-**Last sync:** upstream `decolua/9router` v0.4.10 merged into master on 2026-04-30 (87 files, +4276/-474). Conflict resolution favored fork's MITM hardening (debug context, RTK compression, multi-store cert install with WSL support, enhanced DNS error reporting); adopted upstream's new web search/fetch handlers and media-providers. Round 1–3 fixes preserved untouched.
+**Last full sync:** upstream v0.4.10 merged into master on 2026-04-30. No further full syncs planned.
 
 ### Bug fixes shipped (Round 1–3, all on master)
 
