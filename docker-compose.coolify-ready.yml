@@ -1,0 +1,50 @@
+# docker-compose.coolify-ready.yml
+# Deploy n9router fork lên VPS qua Coolify hoặc Docker Compose trực tiếp.
+#
+# Data cũ mount từ: /home/atmdev/n9router-fork/n9router-data
+# Chứa: db.json (providers, tokens, combos, keys, settings), usage.json, log.txt
+#
+# Sử dụng:
+#   cp .env.coolify .env
+#   # chỉnh sửa .env cho đúng domain/secret
+#   docker compose -f docker-compose.coolify-ready.yml up -d --build
+
+services:
+  n9router:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: local/n9router-fork:latest
+    container_name: ${CONTAINER_NAME:-n9router-fork}
+    ports:
+      - "${PORT:-20128}:${PORT:-20128}"
+    env_file:
+      - ./.env
+    volumes:
+      - /home/atmdev/n9router-fork/n9router-data:/app/data
+    restart: unless-stopped
+
+    cpus: "5.0"
+    mem_limit: 4g
+    memswap_limit: 4g
+
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+    security_opt:
+      - no-new-privileges:true
+
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:${PORT:-20128}/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

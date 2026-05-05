@@ -51,6 +51,9 @@ docs/*
 !docs/ARCHITECTURE.md
 !docs/PERF_INVESTIGATION.md
 !docs/TOOLS_INVESTIGATION.md
+!docs/fork-fixes-and-upgrades-summary.md
+!docs/fix-response-model-tools-leak.md
+!docs/cutover-checklist.md
 test/*
 bin/*
 open-sse/test/*
