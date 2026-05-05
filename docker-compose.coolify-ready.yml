@@ -1,28 +1,72 @@
 # docker-compose.coolify-ready.yml
-# Deploy n9router fork lên VPS qua Coolify hoặc Docker Compose trực tiếp.
+# Coolify-compatible compose for n9router fork.
 #
-# Data cũ mount từ: /home/atmdev/n9router-fork/n9router-data
-# Chứa: db.json (providers, tokens, combos, keys, settings), usage.json, log.txt
+# Coolify:     Import this file. Coolify auto-detects ${VAR} references
+#              and shows them in its Environment Variables UI.
+#              Required vars (:?) block deployment until set.
+#              Do NOT add an env_file — Coolify injects vars at runtime.
 #
-# Sử dụng:
-#   cp .env.coolify .env
-#   # chỉnh sửa .env cho đúng domain/secret
-#   docker compose -f docker-compose.coolify-ready.yml up -d --build
+# Standalone:  cp .env.coolify .env
+#              docker compose -f docker-compose.coolify-ready.yml up -d --build
 
 services:
   n9router:
     build:
       context: .
       dockerfile: Dockerfile
-    image: local/n9router-fork:latest
+    image: ${IMAGE_NAME:-local/n9router-fork}:${IMAGE_TAG:-latest}
     container_name: ${CONTAINER_NAME:-n9router-fork}
     ports:
       - "${PORT:-20128}:${PORT:-20128}"
-    env_file:
-      - ./.env
+
+    environment:
+      # --- Required (Coolify blocks deploy if empty) ---
+      - JWT_SECRET=${JWT_SECRET:?}
+      - INITIAL_PASSWORD=${INITIAL_PASSWORD:?}
+
+      # --- Runtime ---
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=${PORT:-20128}
+      - HOSTNAME=${HOSTNAME:-0.0.0.0}
+      - DATA_DIR=${DATA_DIR:-/app/data}
+      - BASE_URL=${BASE_URL:-http://localhost:20128}
+      - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL:-http://localhost:20128}
+
+      # --- Security ---
+      - AUTH_COOKIE_SECURE=${AUTH_COOKIE_SECURE:-false}
+      - REQUIRE_API_KEY=${REQUIRE_API_KEY:-true}
+      - API_KEY_SECRET=${API_KEY_SECRET:?}
+      - MACHINE_ID_SALT=${MACHINE_ID_SALT:?}
+
+      # --- Observability ---
+      - ENABLE_REQUEST_LOGS=${ENABLE_REQUEST_LOGS:-false}
+      - OBSERVABILITY_ENABLED=${OBSERVABILITY_ENABLED:-true}
+
+      # --- Proxy (leave empty if not behind a proxy) ---
+      - HTTP_PROXY=${HTTP_PROXY:-}
+      - HTTPS_PROXY=${HTTPS_PROXY:-}
+      - ALL_PROXY=${ALL_PROXY:-}
+      - NO_PROXY=${NO_PROXY:-}
+
     volumes:
-      - /home/atmdev/n9router-fork/n9router-data:/app/data
+      # Bind mount: set DATA_PATH=/home/atmdev/n9router-fork/n9router-data
+      # Named volume: leave DATA_PATH unset (uses "n9router-data" volume)
+      - ${DATA_PATH:-n9router-data}:/app/data
+
     restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -qO /dev/null http://localhost:${PORT:-20128}/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
 
     cpus: "5.0"
     mem_limit: 4g
@@ -33,18 +77,9 @@ services:
         soft: 65535
         hard: 65535
 
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "50m"
-        max-file: "5"
-
     security_opt:
       - no-new-privileges:true
 
-    healthcheck:
-      test: ["CMD", "sh", "-c", "wget --no-verbose --tries=1 --spider http://localhost:${PORT:-20128}/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+volumes:
+  n9router-data:
+    driver: local
